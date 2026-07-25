@@ -66,7 +66,7 @@ def ydotool_ready():
 def press(shortcut="ctrl+v", delay=0.12):
     """Press a key combination through ydotool, e.g. 'ctrl+v'."""
     if not ydotool_ready():
-        raise PasteError(t("ydotool not found — cannot paste automatically."))
+        raise PasteError(t("ydotool not found, cannot paste automatically."))
 
     codes = []
     for key in (k.strip().lower() for k in shortcut.split("+") if k.strip()):

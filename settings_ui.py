@@ -47,7 +47,7 @@ class SettingsWindow(QDialog):
         self.conf = conf
         self.launch_command = launch_command
         self.transcriber = FileTranscriber(conf, self)
-        self.setWindowTitle(t("Dikte — Settings"))
+        self.setWindowTitle(t("Dikte Settings"))
         self.resize(680, 640)
 
         tabs = QTabWidget(self)
@@ -155,7 +155,7 @@ class SettingsWindow(QDialog):
         page = QWidget()
         outer = QVBoxLayout(page)
 
-        oai = QGroupBox(t("OpenAI — speech to text"))
+        oai = QGroupBox(t("OpenAI: speech to text"))
         oai_form = QFormLayout(oai)
         self.openai_key = QLineEdit()
         self.openai_key.setEchoMode(QLineEdit.EchoMode.Password)
@@ -177,7 +177,7 @@ class SettingsWindow(QDialog):
         oai_form.addRow("", self._wrap(row))
         outer.addWidget(oai)
 
-        orr = QGroupBox(t("OpenRouter — transcript cleanup"))
+        orr = QGroupBox(t("OpenRouter: transcript cleanup"))
         orr_form = QFormLayout(orr)
         self.cleanup_enabled = QCheckBox(t("Clean the transcript with a model"))
         orr_form.addRow("", self.cleanup_enabled)
@@ -312,7 +312,7 @@ class SettingsWindow(QDialog):
         layout.addWidget(self.shortcut_status)
 
         self.evdev_enabled = QCheckBox(t(
-            "Use the built-in listener (/dev/input) — for when the KDE shortcut is "
+            "Use the built-in listener (/dev/input), for when the KDE shortcut is "
             "not active yet"
         ))
         self.evdev_enabled.setToolTip(t(
@@ -511,7 +511,7 @@ class SettingsWindow(QDialog):
 
     def _on_file_finished(self, text):
         self.file_output.setPlainText(text)
-        self.file_status.setText(t("Done — {chars} characters.", chars=len(text)))
+        self.file_status.setText(t("Done: {chars} characters.", chars=len(text)))
         self._file_idle()
 
     def _on_file_failed(self, error):

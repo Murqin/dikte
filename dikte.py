@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dikte — press Ctrl+Space, talk, press again: transcribe, clean up, paste.
+"""Dikte: press Ctrl+Space, talk, press again to transcribe, clean up and paste.
 
 Usage:
   dikte.py               run in the background (tray icon)
@@ -91,7 +91,7 @@ class Dikte:
         self.menu.addAction(self.quit_action)
 
         self.tray.setContextMenu(self.menu)
-        self.tray.setToolTip(t("Dikte — ready"))
+        self.tray.setToolTip(t("Dikte: ready"))
         self.tray.activated.connect(self._tray_clicked)
         self._set_icon("audio-input-microphone")
 
@@ -110,9 +110,9 @@ class Dikte:
     def _set_state(self, state):
         self.state = state
         labels = {
-            IDLE: ("Start recording", "audio-input-microphone", "Dikte — ready"),
-            RECORDING: ("Stop and transcribe", "media-record", "Dikte — recording"),
-            BUSY: ("Working…", "view-refresh", "Dikte — working"),
+            IDLE: ("Start recording", "audio-input-microphone", "Dikte: ready"),
+            RECORDING: ("Stop and transcribe", "media-record", "Dikte: recording"),
+            BUSY: ("Working…", "view-refresh", "Dikte: working"),
         }
         label, icon, tip = labels[state]
         self.toggle_action.setText(t(label))

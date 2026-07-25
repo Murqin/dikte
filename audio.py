@@ -136,7 +136,7 @@ class Recorder(QObject):
 
         frames = len(pcm) // (SAMPLE_WIDTH * CHANNELS)
         if frames < MIN_FRAMES:  # a stray keypress, not speech
-            self.failed.emit(t("Recording too short — speak for at least 0.3 s"))
+            self.failed.emit(t("Recording too short, speak for at least 0.3 s"))
             return
 
         path = write_wav(pcm)

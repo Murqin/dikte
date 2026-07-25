@@ -63,7 +63,7 @@ def parse_shortcut(text):
 class EvdevHotkey(QObject):
     """Catches a global shortcut by reading /dev/input directly.
 
-    It does not swallow the key — the focused application sees the combination
+    It does not swallow the key; the focused application sees the combination
     too. This is the fallback that works before the KDE shortcut goes live.
     """
 

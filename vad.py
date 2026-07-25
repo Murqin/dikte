@@ -2,7 +2,7 @@
 
 Absolute thresholds don't travel between machines: one laptop's built-in mic
 sits at -70 dBFS when the room is quiet, another clips the same room at -35.
-So the main test is relative — speech has to rise clearly above *this
+So the main test is relative: speech has to rise clearly above *this
 recording's own* noise floor, and it has to last long enough to be a word.
 
 The transcription models are the reason this matters: fed near-silence they
@@ -71,7 +71,7 @@ def is_silent(stats, silence_db=-55.0, margin_db=10.0, min_voiced_seconds=0.3):
     Three independent reasons, any one of which is enough:
       * the loud end of the recording is below the absolute floor
       * nothing rose far enough above the noise floor for long enough
-      * the level never moved — steady hiss, hum or fan noise
+      * the level never moved, meaning steady hiss, hum or fan noise
     """
     if stats["speech_db"] < silence_db:
         return True
@@ -100,7 +100,7 @@ def looks_like_hallucination(text, duration_seconds, max_duration=6.0):
         return True
     if normalised in HALLUCINATIONS:
         return True
-    # "Altyazı M.K. Altyazı M.K. Altyazı M.K." — the same stock line repeated.
+    # "Altyazı M.K. Altyazı M.K. Altyazı M.K.": the same stock line repeated.
     words = normalised.split()
     for phrase in HALLUCINATIONS:
         parts = phrase.split()

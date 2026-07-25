@@ -1,7 +1,7 @@
 """Tiny translation helper.
 
 Source strings are English; Turkish translations live in the TR table below.
-No gettext, no .mo files — the string table is small enough to keep in code.
+No gettext, no .mo files; the string table is small enough to keep in code.
 """
 
 import os
@@ -40,9 +40,9 @@ TR = {
     "Cancel recording": "Kaydı iptal et",
     "Settings…": "Ayarlar…",
     "Quit": "Çık",
-    "Dikte — ready": "Dikte — hazır",
-    "Dikte — recording": "Dikte — kaydediyor",
-    "Dikte — working": "Dikte — işleniyor",
+    "Dikte: ready": "Dikte: hazır",
+    "Dikte: recording": "Dikte: kaydediyor",
+    "Dikte: working": "Dikte: işleniyor",
 
     # --- overlay / pipeline -------------------------------------------
     "Transcribing…": "Yazıya çevriliyor…",
@@ -65,7 +65,7 @@ TR = {
         "Konuşmanın ayrıca kaydın kendi gürültü tabanının {margin} dB üstüne "
         "çıkması gerekir; bu mutlak taban nadiren değiştirilir. Kısık konuşma "
         "eleniyorsa düşür, gürültü hâlâ geçiyorsa yükselt.",
-    "Recording too short — speak for at least 0.3 s": "Ses çok kısa — en az 0,3 saniye konuş",
+    "Recording too short, speak for at least 0.3 s": "Ses çok kısa, en az 0,3 saniye konuş",
     "Unexpected error: {error}": "Beklenmeyen hata: {error}",
 
     # --- audio / paste errors -----------------------------------------
@@ -76,8 +76,8 @@ TR = {
         "wl-copy bulunamadı. wl-clipboard paketini kur.",
     "Could not copy to clipboard: {error}": "Panoya kopyalanamadı: {error}",
     "wl-copy exited with code {code}.": "wl-copy {code} koduyla çıktı.",
-    "ydotool not found — cannot paste automatically.":
-        "ydotool bulunamadı — otomatik yapıştırma yapılamıyor.",
+    "ydotool not found, cannot paste automatically.":
+        "ydotool bulunamadı, otomatik yapıştırma yapılamıyor.",
     "Unknown key: {key}": "Bilinmeyen tuş: {key}",
     "Could not run ydotool: {error}": "ydotool çalıştırılamadı: {error}",
     "ydotool failed: {error}\nIs ydotoold running? (systemctl --user status ydotool)":
@@ -94,7 +94,7 @@ TR = {
     "Could not parse the response: {error}": "Yanıt çözümlenemedi: {error}",
 
     # --- settings: tabs and general ------------------------------------
-    "Dikte — Settings": "Dikte — Ayarlar",
+    "Dikte Settings": "Dikte Ayarları",
     "General": "Genel",
     "API and models": "API ve modeller",
     "Cleanup rules": "Temizleme kuralları",
@@ -137,8 +137,8 @@ TR = {
         "Ses kayıtlarını sakla (~/.local/share/dikte/recordings)",
 
     # --- settings: api --------------------------------------------------
-    "OpenAI — speech to text": "OpenAI — sesi yazıya çevirme",
-    "OpenRouter — transcript cleanup": "OpenRouter — transkripti temizleme",
+    "OpenAI: speech to text": "OpenAI: sesi yazıya çevirme",
+    "OpenRouter: transcript cleanup": "OpenRouter: transkripti temizleme",
     "API key": "API anahtarı",
     "Model": "Model",
     "sk-… (falls back to OPENAI_API_KEY)": "sk-… (boşsa OPENAI_API_KEY kullanılır)",
@@ -187,7 +187,7 @@ TR = {
     "Converting audio…": "Ses dönüştürülüyor…",
     "Splitting into {count} chunks…": "{count} parçaya bölünüyor…",
     "Transcribing chunk {index}/{count}…": "{index}/{count} parça yazıya çevriliyor…",
-    "Done — {chars} characters.": "Bitti — {chars} karakter.",
+    "Done: {chars} characters.": "Bitti: {chars} karakter.",
     "Stopped.": "Durduruldu.",
     "Failed: {error}": "Başarısız: {error}",
     "ffmpeg not found. Install it to transcribe files.":
@@ -200,8 +200,8 @@ TR = {
     "Remove": "Kaldır",
     "Registered in KDE: {shortcut}": "KDE'de kayıtlı: {shortcut}",
     "No KDE shortcut installed.": "KDE kısayolu kurulu değil.",
-    "Use the built-in listener (/dev/input) — for when the KDE shortcut is not active yet":
-        "Yerleşik dinleyici kullan (/dev/input) — KDE kısayolu henüz etkin değilken",
+    "Use the built-in listener (/dev/input), for when the KDE shortcut is not active yet":
+        "Yerleşik dinleyici kullan (/dev/input), KDE kısayolu henüz etkin değilken",
     "Works immediately, no session restart. The only difference: the key "
     "combination also reaches the focused application.":
         "Anında çalışır, oturum yenilemek gerekmez. Tek farkı: tuş kombinasyonu "

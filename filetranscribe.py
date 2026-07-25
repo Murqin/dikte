@@ -157,7 +157,7 @@ def _to_wav(path, workdir):
 
 
 def _split(wav_path, workdir):
-    """[(chunk path, offset in seconds)] — a single entry for short files."""
+    """[(chunk path, offset in seconds)], a single entry for short files."""
     with contextlib.closing(wave.open(wav_path, "rb")) as src:
         rate = src.getframerate()
         total = src.getnframes()

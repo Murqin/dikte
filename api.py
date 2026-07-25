@@ -1,4 +1,4 @@
-"""OpenAI (transcription) and OpenRouter (cleanup) calls — stdlib only."""
+"""OpenAI (transcription) and OpenRouter (cleanup) calls, stdlib only."""
 
 import json
 import mimetypes

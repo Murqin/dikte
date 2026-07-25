@@ -38,7 +38,7 @@ if command -v ydotool >/dev/null; then
      || systemctl --user is-active --quiet ydotoold 2>/dev/null; then
     ok "ydotoold is running (auto-paste ready)"
   else
-    warn "ydotoold is not running — auto-paste will not work"
+    warn "ydotoold is not running, auto-paste will not work"
     say  "systemctl --user enable --now ydotool"
   fi
 fi
@@ -50,7 +50,7 @@ chmod +x "$DIR/dikte.py"
 ok "Command installed: $BIN_DIR/dikte"
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
-  *) warn "$BIN_DIR is not on your PATH — for fish: fish_add_path $BIN_DIR" ;;
+  *) warn "$BIN_DIR is not on your PATH. For fish: fish_add_path $BIN_DIR" ;;
 esac
 
 cat > "$APP_DIR/dikte.desktop" <<EOF
@@ -96,7 +96,7 @@ if command -v kwriteconfig6 >/dev/null; then
   say  "next login. Until then open Settings → Shortcut and turn on the"
   say  "built-in listener to use it right away."
 else
-  warn "kwriteconfig6 not found — add the shortcut via System Settings → Shortcuts"
+  warn "kwriteconfig6 not found. Add the shortcut via System Settings > Shortcuts"
 fi
 
 echo
