@@ -211,11 +211,8 @@ class SettingsWindow(QDialog):
         self.refresh_transcribe_models.clicked.connect(self._load_transcribe_models)
         stt_form.addRow(t("Model"),
                         self._row(self.transcribe_model, self.refresh_transcribe_models))
-        # Spanning rows: in the narrow field column a wrapped label gets a height
-        # that fits one line, and the rest of the text is cut off.
-        self.transcribe_note = QLabel("")
-        self.transcribe_note.setWordWrap(True)
-        stt_form.addRow(self.transcribe_note)
+        # A spanning row: in the narrow field column a wrapped label gets a
+        # height that fits one line, and the rest of the text is cut off.
         self.transcribe_status = QLabel("")
         self.transcribe_status.setWordWrap(True)
         stt_form.addRow(self.transcribe_status)
@@ -533,12 +530,6 @@ class SettingsWindow(QDialog):
         self.transcribe_model.addItems(TRANSCRIBE_MODELS[provider])
         self.transcribe_model.setCurrentText(self._models[provider])
         self.transcribe_status.setText("")
-        self.transcribe_note.setText(
-            t("Runs on OpenRouter, with the key above. Word hints reach the "
-              "cleanup model only.")
-            if provider == "openrouter" else
-            t("Runs on OpenAI, with the key above.")
-        )
 
     def _load_transcribe_models(self):
         """The model list of whichever provider is selected."""

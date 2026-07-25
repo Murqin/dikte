@@ -154,12 +154,6 @@ TR = {
     "sk-or-… (falls back to OPENROUTER_API_KEY)": "sk-or-… (boşsa OPENROUTER_API_KEY kullanılır)",
     "Test": "Test et",
     "Trying…": "Deneniyor…",
-    "Runs on OpenAI, with the key above.":
-        "Yukarıdaki anahtarla OpenAI üzerinde çalışır.",
-    "Runs on OpenRouter, with the key above. Word hints reach the cleanup "
-    "model only.":
-        "Yukarıdaki anahtarla OpenRouter üzerinde çalışır. Kelime ipuçları "
-        "yalnızca temizleme modeline gider.",
     "Runs on OpenRouter.": "OpenRouter üzerinde çalışır.",
     "Connection works. {count} audio models visible.":
         "Bağlantı tamam. {count} ses modeli görünüyor.",
