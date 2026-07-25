@@ -4,12 +4,12 @@ import os
 import threading
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QGuiApplication
+from PyQt6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-    QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
-    QTabWidget, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit,
+    QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
 import api
@@ -59,13 +59,12 @@ class SettingsWindow(QDialog):
         tabs.addTab(self._shortcut_tab(), t("Shortcut"))
         tabs.addTab(self._history_tab(), t("History"))
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
+        # Save keeps the window open, so the window is closed with the titlebar
+        # cross (or Escape) instead. A "Cancel" next to it would be a lie: the
+        # settings are already on disk by then.
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save"))
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
         buttons.accepted.connect(self._save)
-        buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
         layout.addWidget(tabs)
@@ -344,16 +343,44 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(page)
         self.history = QListWidget()
         self.history.setWordWrap(True)
+        self.history.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection
+        )
+        self.history.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.history.customContextMenuRequested.connect(self._history_menu)
+        delete_key = QShortcut(QKeySequence.StandardKey.Delete, self.history)
+        delete_key.setContext(Qt.ShortcutContext.WidgetShortcut)
+        delete_key.activated.connect(self._delete_history)
         layout.addWidget(self.history, 1)
+
+        self.history_limit = QSpinBox()
+        self.history_limit.setRange(0, 10000)
+        self.history_limit.setSpecialValueText(t("no limit"))
+        self.history_limit.setSuffix(t(" entries"))
+        self.history_limit.setToolTip(t(
+            "Once the history passes this many entries, the oldest one is dropped "
+            "every time a new one arrives. Set it to 0 to keep everything."
+        ))
+        limit_row = QHBoxLayout()
+        limit_row.addWidget(QLabel(t("Keep at most")))
+        limit_row.addWidget(self.history_limit)
+        limit_row.addStretch(1)
+        layout.addLayout(limit_row)
 
         copy = QPushButton(t("Copy selected to clipboard"))
         copy.clicked.connect(self._copy_history)
+        delete = QPushButton(t("Delete selected"))
+        delete.clicked.connect(self._delete_history)
+        clear = QPushButton(t("Clear history"))
+        clear.clicked.connect(self._clear_history)
         reload_ = QPushButton(t("Reload"))
         reload_.clicked.connect(self._load_history)
         row = QHBoxLayout()
         row.addWidget(copy)
-        row.addWidget(reload_)
+        row.addWidget(delete)
         row.addStretch(1)
+        row.addWidget(clear)
+        row.addWidget(reload_)
         layout.addLayout(row)
         return page
 
@@ -395,6 +422,8 @@ class SettingsWindow(QDialog):
         self.shortcut.setText(conf["shortcut"])
         self.evdev_enabled.setChecked(conf["evdev_hotkey"])
 
+        self.history_limit.setValue(max(0, int(conf["history_limit"])))
+
         self._refresh_shortcut_status()
         self._load_history()
 
@@ -430,9 +459,16 @@ class SettingsWindow(QDialog):
 
         conf["shortcut"] = self.shortcut.text().strip() or "Ctrl+Space"
         conf["evdev_hotkey"] = self.evdev_enabled.isChecked()
+        conf["history_limit"] = self.history_limit.value()
         conf.save()
+        # A lowered limit should bite now, not on the next dictation.
+        try:
+            cfg.trim_history(conf["history_limit"])
+        except OSError as exc:
+            print(f"dikte: could not trim the history ({exc})")
+        self._load_history()  # the trim may just have dropped rows from the list
         self.applied.emit()
-        self.accept()
+        QMessageBox.information(self, t("Dikte Settings"), t("Saved successfully."))
 
     @staticmethod
     def _select_data(combo, value):
@@ -601,16 +637,78 @@ class SettingsWindow(QDialog):
 
     def _load_history(self):
         self.history.clear()
-        for row in reversed(cfg.read_history(200)):
+        for row in reversed(cfg.read_history(self.conf["history_limit"])):
             text = (row.get("text") or "").replace("\n", " ")
             preview = text[:110] + ("…" if len(text) > 110 else "")
             header = t("{ts}  ({duration} s)",
                        ts=row.get("ts", ""), duration=row.get("duration", 0))
             item = QListWidgetItem(f"{header}\n{preview}")
-            item.setData(Qt.ItemDataRole.UserRole, row.get("text", ""))
+            item.setData(Qt.ItemDataRole.UserRole, row)
             self.history.addItem(item)
 
+    def _selected_rows(self):
+        """Selected entries, newest first, the order they are listed in."""
+        items = sorted(self.history.selectedItems(), key=self.history.row)
+        return [item.data(Qt.ItemDataRole.UserRole) for item in items]
+
     def _copy_history(self):
-        item = self.history.currentItem()
-        if item:
-            QGuiApplication.clipboard().setText(item.data(Qt.ItemDataRole.UserRole))
+        rows = self._selected_rows()
+        if rows:
+            QGuiApplication.clipboard().setText(
+                "\n\n".join(row.get("text", "") for row in rows)
+            )
+
+    def _delete_history(self):
+        rows = self._selected_rows()
+        if not rows:
+            return
+        # One entry goes without asking; a multi-selection is easy to make by
+        # accident, and there is no undo.
+        if len(rows) > 1 and not self._confirm(
+            t("Delete the {count} selected entries?", count=len(rows))
+        ):
+            return
+        self._rewrite_history(lambda: cfg.delete_history(rows))
+
+    def _clear_history(self):
+        if not self.history.count():
+            return
+        if not self._confirm(t("Delete the whole history? This cannot be undone.")):
+            return
+        self._rewrite_history(cfg.clear_history)
+
+    def _confirm(self, question):
+        answer = QMessageBox.question(
+            self, t("History"), question,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
+    def _rewrite_history(self, action):
+        try:
+            action()
+        except OSError as exc:
+            QMessageBox.warning(self, t("History"), t("Failed: {error}", error=exc))
+        self._load_history()
+
+    def _history_menu(self, pos):
+        item = self.history.itemAt(pos)
+        if item is not None and not item.isSelected():
+            self.history.setCurrentItem(item)
+        menu = QMenu(self)
+        copy = menu.addAction(t("Copy selected to clipboard"))
+        delete = menu.addAction(t("Delete selected"))
+        menu.addSeparator()
+        clear = menu.addAction(t("Clear history"))
+        has_selection = bool(self.history.selectedItems())
+        copy.setEnabled(has_selection)
+        delete.setEnabled(has_selection)
+        clear.setEnabled(self.history.count() > 0)
+        chosen = menu.exec(self.history.viewport().mapToGlobal(pos))
+        if chosen is copy:
+            self._copy_history()
+        elif chosen is delete:
+            self._delete_history()
+        elif chosen is clear:
+            self._clear_history()

@@ -113,7 +113,10 @@ class Pipeline(QObject):
                 "raw": raw,
                 "text": text,
             })
-            cfg.trim_history(conf["history_limit"])
+            try:
+                cfg.trim_history(conf["history_limit"])
+            except OSError as exc:
+                print(f"dikte: could not trim the history: {exc}", file=sys.stderr)
             self.finished.emit(raw, text, warning)
 
         except (api.ApiError, paste.PasteError) as exc:

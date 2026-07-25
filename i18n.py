@@ -111,7 +111,7 @@ TR = {
     "Shortcut": "Kısayol",
     "History": "Geçmiş",
     "Save": "Kaydet",
-    "Cancel": "Vazgeç",
+    "Saved successfully.": "Başarıyla kaydedildi.",
     "Interface language": "Arayüz dili",
     "Automatic (system)": "Otomatik (sistem)",
     "Turkish": "Türkçe",
@@ -245,6 +245,18 @@ TR = {
 
     # --- settings: history --------------------------------------------------
     "Copy selected to clipboard": "Seçiliyi panoya kopyala",
+    "Delete selected": "Seçiliyi sil",
+    "Clear history": "Geçmişi temizle",
     "Reload": "Yenile",
     "{ts}  ({duration} s)": "{ts}  ({duration} sn)",
+    "Keep at most": "En fazla",
+    " entries": " kayıt",
+    "no limit": "sınırsız",
+    "Once the history passes this many entries, the oldest one is dropped "
+    "every time a new one arrives. Set it to 0 to keep everything.":
+        "Geçmiş bu sayıyı aştıktan sonra, her yeni kayıt geldiğinde en eski kayıt "
+        "silinir. Hepsini tutmak için 0 yaz.",
+    "Delete the {count} selected entries?": "Seçili {count} kayıt silinsin mi?",
+    "Delete the whole history? This cannot be undone.":
+        "Geçmişin tamamı silinsin mi? Bu geri alınamaz.",
 }

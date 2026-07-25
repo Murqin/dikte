@@ -210,12 +210,15 @@ def append_history(entry):
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def read_history(limit=200):
+def read_history(limit=None):
+    """Newest last. A limit of None (or 0) reads the whole file."""
     try:
         with open(HISTORY_FILE, encoding="utf-8") as fh:
-            lines = fh.readlines()[-limit:]
+            lines = fh.readlines()
     except OSError:
         return []
+    if limit:
+        lines = lines[-limit:]
     out = []
     for line in lines:
         try:
@@ -225,10 +228,43 @@ def read_history(limit=200):
     return out
 
 
+def _write_history(lines):
+    """Replace the file in one go, so a crash cannot leave it half written."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = HISTORY_FILE.with_suffix(".jsonl.tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.writelines(lines)
+    tmp.replace(HISTORY_FILE)
+
+
 def trim_history(limit):
-    rows = read_history(limit)
-    if not rows:
+    """Drop the oldest entries once the file passes `limit` rows. 0 means keep all."""
+    if not limit or limit < 0:
         return
-    with open(HISTORY_FILE, "w", encoding="utf-8") as fh:
-        for row in rows:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    try:
+        with open(HISTORY_FILE, encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return
+    if len(lines) <= limit:
+        return
+    _write_history(lines[-limit:])
+
+
+def _row_key(row):
+    return json.dumps(row, ensure_ascii=False, sort_keys=True)
+
+
+def delete_history(rows):
+    """Remove the given entries, matched on their whole content rather than on a
+    line number: the worker may have appended a new one since the list was read."""
+    doomed = {_row_key(row) for row in rows}
+    if not doomed:
+        return
+    kept = [json.dumps(row, ensure_ascii=False) + "\n"
+            for row in read_history() if _row_key(row) not in doomed]
+    _write_history(kept)
+
+
+def clear_history():
+    HISTORY_FILE.unlink(missing_ok=True)
