@@ -60,13 +60,12 @@ class Pipeline(QObject):
 
         try:
             self.stage.emit(t("Transcribing…"))
+            target = conf.transcribe_target()
             raw = api.transcribe(
+                target,
                 wav_path,
-                conf.openai_key(),
-                model=conf["transcribe_model"],
                 language=conf["language"],
                 prompt=conf["transcribe_prompt"],
-                base_url=conf["openai_base_url"],
             )
 
             if conf["filter_hallucinations"] and vad.looks_like_hallucination(raw, duration):
@@ -107,7 +106,7 @@ class Pipeline(QObject):
                 "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "duration": round(duration, 1),
                 "elapsed": round(time.monotonic() - started, 1),
-                "model": conf["transcribe_model"],
+                "model": target.model,
                 "cleanup_model": conf["cleanup_model"] if conf["cleanup_enabled"] else "",
                 "cleanup_error": warning,
                 "raw": raw,

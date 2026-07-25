@@ -74,6 +74,7 @@ class FileTranscriber(QObject):
             if len(chunks) > 1:
                 self.progress.emit(t("Splitting into {count} chunks…", count=len(chunks)))
 
+            target = conf.transcribe_target()
             pieces = []
             for index, (chunk_path, offset) in enumerate(chunks, start=1):
                 self._check()
@@ -82,11 +83,10 @@ class FileTranscriber(QObject):
                 )
                 if timestamps:
                     segments = api.transcribe_segments(
+                        target,
                         chunk_path,
-                        conf.openai_key(),
                         language=conf["language"],
                         prompt=conf["transcribe_prompt"],
-                        base_url=conf["openai_base_url"],
                     )
                     pieces.extend(
                         f"[{format_timestamp(start + offset)}] {text}"
@@ -94,12 +94,10 @@ class FileTranscriber(QObject):
                     )
                 else:
                     pieces.append(api.transcribe(
+                        target,
                         chunk_path,
-                        conf.openai_key(),
-                        model=conf["transcribe_model"],
                         language=conf["language"],
                         prompt=conf["transcribe_prompt"],
-                        base_url=conf["openai_base_url"],
                     ))
 
             text = "\n".join(pieces) if timestamps else " ".join(pieces)

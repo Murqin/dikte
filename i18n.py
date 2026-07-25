@@ -93,10 +93,8 @@ TR = {
         "ydotool hatası: {error}\nydotoold çalışıyor mu? (systemctl --user status ydotool)",
 
     # --- api errors ----------------------------------------------------
-    "OpenAI API key is empty. Add it in Settings.":
-        "OpenAI API anahtarı boş. Ayarlar'dan gir.",
-    "OpenRouter API key is empty. Add it in Settings.":
-        "OpenRouter API anahtarı boş. Ayarlar'dan gir.",
+    "{service} API key is empty. Add it in Settings.":
+        "{service} API anahtarı boş. Ayarlar'dan gir.",
     "Transcript came back empty.": "Transkript boş döndü.",
     "The cleanup model returned an empty reply.": "Temizleme modeli boş yanıt döndü.",
     "Could not connect: {reason}": "Bağlantı kurulamadı: {reason}",
@@ -146,14 +144,23 @@ TR = {
         "Ses kayıtlarını sakla (~/.local/share/dikte/recordings)",
 
     # --- settings: api --------------------------------------------------
-    "OpenAI: speech to text": "OpenAI: sesi yazıya çevirme",
-    "OpenRouter: transcript cleanup": "OpenRouter: transkripti temizleme",
+    "Keys": "Anahtarlar",
+    "Speech to text": "Sesi yazıya çevirme",
+    "Transcript cleanup": "Transkripti temizleme",
     "API key": "API anahtarı",
     "Model": "Model",
+    "Provider": "Sağlayıcı",
     "sk-… (falls back to OPENAI_API_KEY)": "sk-… (boşsa OPENAI_API_KEY kullanılır)",
     "sk-or-… (falls back to OPENROUTER_API_KEY)": "sk-or-… (boşsa OPENROUTER_API_KEY kullanılır)",
-    "Test key": "Anahtarı test et",
+    "Test": "Test et",
     "Trying…": "Deneniyor…",
+    "Runs on OpenAI, with the key above.":
+        "Yukarıdaki anahtarla OpenAI üzerinde çalışır.",
+    "Runs on OpenRouter, with the key above. Word hints reach the cleanup "
+    "model only.":
+        "Yukarıdaki anahtarla OpenRouter üzerinde çalışır. Kelime ipuçları "
+        "yalnızca temizleme modeline gider.",
+    "Runs on OpenRouter.": "OpenRouter üzerinde çalışır.",
     "Connection works. {count} audio models visible.":
         "Bağlantı tamam. {count} ses modeli görünüyor.",
     "Clean the transcript with a model": "Transkripti bir modelle temizle",
@@ -187,10 +194,10 @@ TR = {
     "Audio and video files": "Ses ve video dosyaları",
     "All files": "Tüm dosyalar",
     "Add timestamps": "Zaman damgası ekle",
-    "Prefixes every segment with [mm:ss]. Uses whisper-1, the only model that "
-    "returns segment times.":
+    "Prefixes every segment with [mm:ss]. Uses whisper-1 on whichever provider "
+    "you picked, the only model that returns segment times.":
         "Her bölümün başına [dd:ss] koyar. Bölüm zamanı döndüren tek model olan "
-        "whisper-1 kullanılır.",
+        "whisper-1, seçtiğin sağlayıcı üzerinden kullanılır.",
     "Run the cleanup model afterwards": "Sonrasında temizleme modelinden geçir",
     "Transcribe": "Yazıya çevir",
     "Stop": "Durdur",

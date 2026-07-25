@@ -1,8 +1,9 @@
 # Dikte
 
-`Ctrl+Space`'e bas, konuş, tekrar bas. Ses OpenAI'ye gidip yazıya çevrilir,
-OpenRouter'daki bir model transkripti temizler (ıı'lar, tekrarlar, eksik
-noktalama), sonuç panoya kopyalanır ve o an yazdığın pencereye yapıştırılır.
+`Ctrl+Space`'e bas, konuş, tekrar bas. Ses OpenAI'ye ya da OpenRouter'a gidip
+yazıya çevrilir, OpenRouter'daki bir model transkripti temizler (ıı'lar,
+tekrarlar, eksik noktalama), sonuç panoya kopyalanır ve o an yazdığın pencereye
+yapıştırılır.
 
 KDE Plasma 6 / Wayland için yazıldı. Sistem paketleri dışında bağımlılığı yok:
 sadece Python standart kütüphanesi ve PyQt6.
@@ -31,12 +32,13 @@ dikte                        # ilk açılışta ayarlar penceresi gelir
 `install.sh` `dikte` komutunu, menü girdisini, oturum açılışında otomatik
 başlatmayı ve KDE kısayolunu kurar.
 
-Ayarlar penceresinde iki anahtar istenir: sesi yazıya çeviren **OpenAI**
-(`gpt-4o-transcribe`) ve transkripti temizleyen **OpenRouter** (varsayılan
-`google/gemini-3.5-flash-lite`, listedeki her model çalışır). Boş bırakırsan
-`OPENAI_API_KEY` ve `OPENROUTER_API_KEY` kullanılır; anahtarlar
-`~/.config/dikte/config.json` içinde, izinler 600. Temizlemeyi tamamen
-kapatabilirsin, o zaman ham transkript yapıştırılır.
+Ayarlar penceresinde iki anahtar istenir: **OpenAI** ve **OpenRouter**. Sesi
+yazıya çevirme ikisinden birinde çalışır (varsayılan `gpt-4o-transcribe`),
+temizleme her zaman OpenRouter'da (`google/gemini-3.5-flash-lite`), yani tek bir
+OpenRouter anahtarı ikisine de yeter. Boş bırakırsan `OPENAI_API_KEY` ve
+`OPENROUTER_API_KEY` kullanılır; anahtarlar `~/.config/dikte/config.json`
+içinde, izinler 600. Temizlemeyi tamamen kapatabilirsin, o zaman ham transkript
+yapıştırılır.
 
 ## Kullanım
 
@@ -98,7 +100,7 @@ grubunda olmasını gerektirir: `sudo usermod -aG input $USER`.
 ```
 dikte.py          giriş noktası, tepsi simgesi, durum makinesi, IPC
 audio.py          pw-record ile ham PCM kaydı ve seviye ölçer
-api.py            OpenAI transkript + OpenRouter temizleme (yalnız stdlib)
+api.py            iki sağlayıcıda transkript + OpenRouter temizleme (yalnız stdlib)
 worker.py         transkript → temizleme → pano → yapıştırma
 vad.py            kayıtta gerçekten konuşma var mı kararı
 filetranscribe.py dosyadan transkript: ffmpeg, parçalama, zaman damgaları

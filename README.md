@@ -1,7 +1,7 @@
 # Dikte
 
-Press `Ctrl+Space`, talk, press again. The recording goes to OpenAI for
-transcription, a model on OpenRouter cleans it up (dropping the *uh*s, the
+Press `Ctrl+Space`, talk, press again. The recording goes to OpenAI or OpenRouter
+for transcription, a model on OpenRouter cleans it up (dropping the *uh*s, the
 restarts, the missing punctuation), and the result lands in your clipboard and
 is pasted into whatever window you were typing in.
 
@@ -32,12 +32,12 @@ dikte                        # the settings window opens on first run
 `install.sh` adds the `dikte` command, a menu entry, an autostart entry and the
 KDE shortcut.
 
-Two keys go in the settings window: **OpenAI** for speech to text
-(`gpt-4o-transcribe`) and **OpenRouter** for the cleanup
-(`google/gemini-3.5-flash-lite` by default, any model on the list works). They
-fall back to `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, and are stored in
-`~/.config/dikte/config.json`, mode 600. Cleanup can be switched off, in which
-case the raw transcript is pasted.
+Two keys go in the settings window: **OpenAI** and **OpenRouter**. Speech to text
+runs on either one (`gpt-4o-transcribe` by default), cleanup always on
+OpenRouter (`google/gemini-3.5-flash-lite`), so a single OpenRouter key can
+cover both. They fall back to `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, and are
+stored in `~/.config/dikte/config.json`, mode 600. Cleanup can be switched off,
+in which case the raw transcript is pasted.
 
 ## Using it
 
@@ -99,7 +99,7 @@ needs your user in the `input` group: `sudo usermod -aG input $USER`.
 ```
 dikte.py          entry point, tray icon, state machine, IPC
 audio.py          raw PCM capture through pw-record plus the level meter
-api.py            OpenAI transcription and OpenRouter cleanup (stdlib only)
+api.py            transcription on either provider, OpenRouter cleanup (stdlib only)
 worker.py         transcribe → clean up → clipboard → paste
 vad.py            deciding whether a recording holds speech at all
 filetranscribe.py file transcription: ffmpeg, chunking, timestamps

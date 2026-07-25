@@ -5,6 +5,7 @@ import json
 import os
 import pathlib
 
+import api
 import i18n
 
 
@@ -92,7 +93,9 @@ DEFAULTS = {
     "openai_base_url": "https://api.openai.com/v1",
     "openrouter_api_key": "",
     "openrouter_base_url": "https://openrouter.ai/api/v1",
-    "transcribe_model": "gpt-4o-transcribe",
+    "transcribe_provider": "openai",  # openai | openrouter
+    "transcribe_model": "gpt-4o-transcribe",           # used when provider is openai
+    "openrouter_transcribe_model": "openai/gpt-4o-transcribe",
     "language": "tr",
     "transcribe_prompt": "",
     "cleanup_enabled": True,
@@ -183,6 +186,15 @@ class Config:
 
     def openrouter_key(self):
         return self["openrouter_api_key"].strip() or os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+    def transcribe_target(self):
+        """Key, endpoint and model for whichever provider does speech to text."""
+        if self["transcribe_provider"] == "openrouter":
+            return api.Target("openrouter", "OpenRouter", self.openrouter_key(),
+                              self["openrouter_base_url"],
+                              self["openrouter_transcribe_model"])
+        return api.Target("openai", "OpenAI", self.openai_key(),
+                          self["openai_base_url"], self["transcribe_model"])
 
     def cleanup_prompt(self, with_timestamps=False):
         turkish = i18n.language() == "tr"

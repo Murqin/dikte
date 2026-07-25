@@ -1,5 +1,12 @@
-"""OpenAI (transcription) and OpenRouter (cleanup) calls, stdlib only."""
+"""OpenAI and OpenRouter calls, stdlib only.
 
+Transcription runs on either provider: OpenRouter mirrors OpenAI's
+/audio/transcriptions endpoint field for field, so one multipart request serves
+both and only the key, the base URL and the model id change. Cleanup is always
+OpenRouter.
+"""
+
+import collections
 import json
 import mimetypes
 import os
@@ -9,11 +16,20 @@ import urllib.request
 
 from i18n import t
 
-USER_AGENT = "dikte/1.0 (+https://github.com/yusufipk/dikte)"
+APP_URL = "https://github.com/yusufipk/dikte"
+USER_AGENT = f"dikte/1.0 (+{APP_URL})"
+OPENAI_URL = "https://api.openai.com/v1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
-# Only whisper-1 returns segment-level timestamps.
-TIMESTAMP_MODEL = "whisper-1"
+# Where a transcription request goes; built by config.Config.transcribe_target().
+# `service` is the name the user sees in an error, `provider` the one the code
+# branches on.
+Target = collections.namedtuple("Target", "provider service api_key base_url model")
+
+
+def timestamp_model(provider):
+    """Only whisper-1 returns segment times, and OpenRouter namespaces the id."""
+    return "openai/whisper-1" if provider == "openrouter" else "whisper-1"
 
 
 class ApiError(Exception):
@@ -89,35 +105,44 @@ def _multipart(fields, file_field, file_path):
     return bytes(out), f"multipart/form-data; boundary={boundary}"
 
 
-def _transcribe_request(wav_path, api_key, model, language, prompt, base_url,
-                        response_format, granularity=None, timeout=300):
-    if not api_key:
-        raise ApiError(t("OpenAI API key is empty. Add it in Settings."))
-    fields = [("model", model), ("response_format", response_format)]
+def _headers(provider, api_key, content_type=None):
+    headers = {"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT}
+    if content_type:
+        headers["Content-Type"] = content_type
+    if provider == "openrouter":
+        # What OpenRouter attributes the calls to on its app leaderboard.
+        headers["HTTP-Referer"] = APP_URL
+        headers["X-Title"] = "Dikte"
+    return headers
+
+
+def _transcribe_request(target, wav_path, language, prompt, response_format,
+                        granularity=None, timeout=300):
+    if not target.api_key:
+        raise ApiError(t("{service} API key is empty. Add it in Settings.",
+                         service=target.service))
+    fields = [("model", target.model), ("response_format", response_format)]
     if language and language != "auto":
         fields.append(("language", language))
-    if prompt:
+    # OpenRouter takes the hint field and throws it away, so spare it the bytes.
+    # The same words still reach the cleanup model as a glossary.
+    if prompt and target.provider == "openai":
         fields.append(("prompt", prompt))
     if granularity:
         fields.append(("timestamp_granularities[]", granularity))
     body, ctype = _multipart(fields, "file", wav_path)
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": ctype,
-        "User-Agent": USER_AGENT,
-    }
     try:
         return _request(
-            f"{base_url.rstrip('/')}/audio/transcriptions", body, headers, timeout=timeout
+            f"{target.base_url.rstrip('/')}/audio/transcriptions", body,
+            _headers(target.provider, target.api_key, ctype), timeout=timeout,
         )
     except ApiError as exc:
-        raise explain(exc, "OpenAI") from None
+        raise explain(exc, target.service) from None
 
 
-def transcribe(wav_path, api_key, model="gpt-4o-transcribe", language="", prompt="",
-               base_url="https://api.openai.com/v1", timeout=300):
+def transcribe(target, wav_path, language="", prompt="", timeout=300):
     data = _transcribe_request(
-        wav_path, api_key, model, language, prompt, base_url, "json", timeout=timeout
+        target, wav_path, language, prompt, "json", timeout=timeout
     )
     text = (data.get("text") or "").strip()
     if not text:
@@ -125,12 +150,12 @@ def transcribe(wav_path, api_key, model="gpt-4o-transcribe", language="", prompt
     return text
 
 
-def transcribe_segments(wav_path, api_key, language="", prompt="",
-                        base_url="https://api.openai.com/v1", timeout=300):
+def transcribe_segments(target, wav_path, language="", prompt="", timeout=300):
     """[(start_seconds, text)] using whisper-1's verbose response."""
     data = _transcribe_request(
-        wav_path, api_key, TIMESTAMP_MODEL, language, prompt, base_url,
-        "verbose_json", granularity="segment", timeout=timeout,
+        target._replace(model=timestamp_model(target.provider)),
+        wav_path, language, prompt, "verbose_json",
+        granularity="segment", timeout=timeout,
     )
     segments = data.get("segments") or []
     out = []
@@ -148,7 +173,8 @@ def transcribe_segments(wav_path, api_key, language="", prompt="",
 
 def cleanup(text, api_key, model, system_prompt, base_url=OPENROUTER_URL, timeout=180):
     if not api_key:
-        raise ApiError(t("OpenRouter API key is empty. Add it in Settings."))
+        raise ApiError(t("{service} API key is empty. Add it in Settings.",
+                         service="OpenRouter"))
     payload = {
         "model": model,
         "temperature": 0,
@@ -157,18 +183,11 @@ def cleanup(text, api_key, model, system_prompt, base_url=OPENROUTER_URL, timeou
             {"role": "user", "content": f"<transcript>\n{text}\n</transcript>"},
         ],
     }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": USER_AGENT,
-        "HTTP-Referer": "https://github.com/yusufipk/dikte",
-        "X-Title": "Dikte",
-    }
     try:
         data = _request(
             f"{base_url.rstrip('/')}/chat/completions",
             json.dumps(payload).encode("utf-8"),
-            headers,
+            _headers("openrouter", api_key, "application/json"),
             timeout=timeout,
         )
     except ApiError as exc:
@@ -199,7 +218,8 @@ def _get_json(url, headers, timeout=20):
 def openrouter_key_status(api_key):
     """Check the key against OpenRouter's own /key endpoint."""
     if not api_key:
-        raise ApiError(t("OpenRouter API key is empty. Add it in Settings."))
+        raise ApiError(t("{service} API key is empty. Add it in Settings.",
+                         service="OpenRouter"))
     try:
         data = _get_json(f"{OPENROUTER_URL}/key",
                          {"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT})
@@ -213,18 +233,32 @@ def openrouter_key_status(api_key):
              usage=round(float(usage or 0), 3), limit=round(float(limit), 3))
 
 
-def openrouter_models(api_key=""):
-    """Model ids available on OpenRouter (no key required)."""
+def openrouter_models(api_key="", transcription=False):
+    """Model ids available on OpenRouter (no key required).
+
+    `transcription` narrows the list to the speech-to-text models, the only ones
+    /audio/transcriptions accepts. The filter is applied again on the result,
+    because a query parameter the API stops honouring would otherwise quietly
+    hand back all several hundred models.
+    """
+    url = f"{OPENROUTER_URL}/models"
+    if transcription:
+        url += "?output_modalities=transcription"
     headers = {"User-Agent": USER_AGENT}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    data = _get_json(f"{OPENROUTER_URL}/models", headers)
-    return sorted(m["id"] for m in data.get("data", []) if m.get("id"))
+    models = _get_json(url, headers).get("data", [])
+    if transcription:
+        models = [m for m in models
+                  if "transcription" in (m.get("architecture") or {}).get(
+                      "output_modalities", [])]
+    return sorted(m["id"] for m in models if m.get("id"))
 
 
-def openai_models(api_key, base_url="https://api.openai.com/v1"):
+def openai_models(api_key, base_url=OPENAI_URL):
     if not api_key:
-        raise ApiError(t("OpenAI API key is empty. Add it in Settings."))
+        raise ApiError(t("{service} API key is empty. Add it in Settings.",
+                         service="OpenAI"))
     try:
         data = _get_json(
             f"{base_url.rstrip('/')}/models",

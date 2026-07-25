@@ -320,7 +320,9 @@ def main():
     server.newConnection.connect(on_connection)
     app.aboutToQuit.connect(dikte.shutdown)
 
-    if command == "settings" or not dikte.conf.openai_key():
+    # No key for the chosen transcription provider means nothing can work yet,
+    # so the settings window is the only useful thing to open.
+    if command == "settings" or not dikte.conf.transcribe_target().api_key:
         dikte.open_settings()
     elif command == "toggle":
         QTimer.singleShot(0, dikte.toggle)

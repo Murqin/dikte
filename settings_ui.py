@@ -25,7 +25,18 @@ LANGUAGES = [
     ("German", "de"), ("French", "fr"), ("Spanish", "es"), ("Arabic", "ar"),
 ]
 CORNERS = ["bottom-left", "bottom-right", "top-left", "top-right"]
-TRANSCRIBE_MODELS = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"]
+TRANSCRIBE_PROVIDERS = [("OpenAI", "openai"), ("OpenRouter", "openrouter")]
+# Starting points for the model box; "Fetch model list" replaces them with
+# whatever the provider offers today.
+TRANSCRIBE_MODELS = {
+    "openai": ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"],
+    "openrouter": [
+        "openai/gpt-4o-transcribe", "openai/gpt-4o-mini-transcribe",
+        "openai/whisper-1", "openai/whisper-large-v3",
+        "openai/whisper-large-v3-turbo", "mistralai/voxtral-mini-transcribe",
+        "deepgram/nova-3", "google/chirp-3",
+    ],
+}
 CLEANUP_MODELS = [
     "google/gemini-3.5-flash-lite", "google/gemini-3.1-flash-lite",
     "google/gemini-2.5-flash-lite", "anthropic/claude-haiku-4.5",
@@ -40,6 +51,7 @@ class SettingsWindow(QDialog):
     applied = pyqtSignal()
 
     _models_loaded = pyqtSignal(list, str)
+    _transcribe_models_loaded = pyqtSignal(list, str)
     _test_done = pyqtSignal(bool, str)
     _or_test_done = pyqtSignal(bool, str)
 
@@ -47,6 +59,10 @@ class SettingsWindow(QDialog):
         super().__init__(parent)
         self.conf = conf
         self.launch_command = launch_command
+        # Each provider keeps its own transcription model, so switching the
+        # provider back and forth never overwrites the other one's.
+        self._models = {"openai": "", "openrouter": ""}
+        self._shown_provider = ""
         self.transcriber = FileTranscriber(conf, self)
         self.setWindowTitle(t("Dikte Settings"))
         self.resize(680, 640)
@@ -71,6 +87,7 @@ class SettingsWindow(QDialog):
         layout.addWidget(buttons)
 
         self._models_loaded.connect(self._on_models_loaded)
+        self._transcribe_models_loaded.connect(self._on_transcribe_models_loaded)
         self._test_done.connect(self._on_test_done)
         self._or_test_done.connect(self._on_or_test_done)
         self.transcriber.progress.connect(self._on_file_progress)
@@ -156,56 +173,69 @@ class SettingsWindow(QDialog):
         page = QWidget()
         outer = QVBoxLayout(page)
 
-        oai = QGroupBox(t("OpenAI: speech to text"))
-        oai_form = QFormLayout(oai)
+        # Keys first, then the two jobs, because OpenRouter can now do both of
+        # them and a key no longer belongs to a single job.
+        keys = QGroupBox(t("Keys"))
+        keys_form = QFormLayout(keys)
         self.openai_key = QLineEdit()
         self.openai_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.openai_key.setPlaceholderText(t("sk-… (falls back to OPENAI_API_KEY)"))
-        oai_form.addRow(t("API key"), self.openai_key)
-
-        self.transcribe_model = QComboBox()
-        self.transcribe_model.setEditable(True)
-        self.transcribe_model.addItems(TRANSCRIBE_MODELS)
-        oai_form.addRow(t("Model"), self.transcribe_model)
-
-        self.test_button = QPushButton(t("Test key"))
+        self.test_button = QPushButton(t("Test"))
         self.test_button.clicked.connect(self._test_openai)
         self.test_label = QLabel("")
         self.test_label.setWordWrap(True)
-        row = QHBoxLayout()
-        row.addWidget(self.test_button)
-        row.addWidget(self.test_label, 1)
-        oai_form.addRow("", self._wrap(row))
-        outer.addWidget(oai)
-
-        orr = QGroupBox(t("OpenRouter: transcript cleanup"))
-        orr_form = QFormLayout(orr)
-        self.cleanup_enabled = QCheckBox(t("Clean the transcript with a model"))
-        orr_form.addRow("", self.cleanup_enabled)
+        keys_form.addRow("OpenAI", self._row(self.openai_key, self.test_button))
+        keys_form.addRow("", self.test_label)
 
         self.openrouter_key = QLineEdit()
         self.openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.openrouter_key.setPlaceholderText(t("sk-or-… (falls back to OPENROUTER_API_KEY)"))
-        orr_form.addRow(t("API key"), self.openrouter_key)
+        self.or_test_button = QPushButton(t("Test"))
+        self.or_test_button.clicked.connect(self._test_openrouter)
+        self.or_test_label = QLabel("")
+        self.or_test_label.setWordWrap(True)
+        keys_form.addRow("OpenRouter", self._row(self.openrouter_key, self.or_test_button))
+        keys_form.addRow("", self.or_test_label)
+        outer.addWidget(keys)
+
+        stt = QGroupBox(t("Speech to text"))
+        stt_form = QFormLayout(stt)
+        self.transcribe_provider = QComboBox()
+        for label, value in TRANSCRIBE_PROVIDERS:
+            self.transcribe_provider.addItem(label, value)
+        stt_form.addRow(t("Provider"), self.transcribe_provider)
+
+        self.transcribe_model = QComboBox()
+        self.transcribe_model.setEditable(True)
+        self.refresh_transcribe_models = QPushButton(t("Fetch model list"))
+        self.refresh_transcribe_models.clicked.connect(self._load_transcribe_models)
+        stt_form.addRow(t("Model"),
+                        self._row(self.transcribe_model, self.refresh_transcribe_models))
+        # Spanning rows: in the narrow field column a wrapped label gets a height
+        # that fits one line, and the rest of the text is cut off.
+        self.transcribe_note = QLabel("")
+        self.transcribe_note.setWordWrap(True)
+        stt_form.addRow(self.transcribe_note)
+        self.transcribe_status = QLabel("")
+        self.transcribe_status.setWordWrap(True)
+        stt_form.addRow(self.transcribe_status)
+        self.transcribe_provider.currentIndexChanged.connect(self._provider_changed)
+        outer.addWidget(stt)
+
+        orr = QGroupBox(t("Transcript cleanup"))
+        orr_form = QFormLayout(orr)
+        self.cleanup_enabled = QCheckBox(t("Clean the transcript with a model"))
+        orr_form.addRow("", self.cleanup_enabled)
 
         self.cleanup_model = QComboBox()
         self.cleanup_model.setEditable(True)
         self.cleanup_model.addItems(CLEANUP_MODELS)
         self.refresh_models = QPushButton(t("Fetch model list"))
         self.refresh_models.clicked.connect(self._load_models)
-        model_row = QHBoxLayout()
-        model_row.addWidget(self.cleanup_model, 1)
-        model_row.addWidget(self.refresh_models)
-        orr_form.addRow(t("Model"), self._wrap(model_row))
-
-        self.or_test_button = QPushButton(t("Test key"))
-        self.or_test_button.clicked.connect(self._test_openrouter)
-        self.models_label = QLabel("")
+        orr_form.addRow(t("Model"), self._row(self.cleanup_model, self.refresh_models))
+        self.models_label = QLabel(t("Runs on OpenRouter."))
         self.models_label.setWordWrap(True)
-        test_row = QHBoxLayout()
-        test_row.addWidget(self.or_test_button)
-        test_row.addWidget(self.models_label, 1)
-        orr_form.addRow("", self._wrap(test_row))
+        orr_form.addRow(self.models_label)
         outer.addWidget(orr)
         outer.addStretch(1)
         return page
@@ -255,8 +285,8 @@ class SettingsWindow(QDialog):
 
         self.file_timestamps = QCheckBox(t("Add timestamps"))
         self.file_timestamps.setToolTip(
-            t("Prefixes every segment with [mm:ss]. Uses whisper-1, the only model "
-              "that returns segment times.")
+            t("Prefixes every segment with [mm:ss]. Uses whisper-1 on whichever "
+              "provider you picked, the only model that returns segment times.")
         )
         layout.addWidget(self.file_timestamps)
 
@@ -385,10 +415,15 @@ class SettingsWindow(QDialog):
         return page
 
     @staticmethod
-    def _wrap(layout):
-        widget = QWidget()
-        widget.setLayout(layout)
-        return widget
+    def _row(*widgets):
+        """Widgets side by side in one form row; the first one takes the space."""
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        for index, widget in enumerate(widgets):
+            layout.addWidget(widget, 1 if index == 0 else 0)
+        holder = QWidget()
+        holder.setLayout(layout)
+        return holder
 
     # ---- load / save ----------------------------------------------------
 
@@ -408,9 +443,13 @@ class SettingsWindow(QDialog):
         self.keep_audio.setChecked(conf["keep_audio"])
 
         self.openai_key.setText(conf["openai_api_key"])
-        self.transcribe_model.setCurrentText(conf["transcribe_model"])
-        self.cleanup_enabled.setChecked(conf["cleanup_enabled"])
         self.openrouter_key.setText(conf["openrouter_api_key"])
+        self._models = {"openai": conf["transcribe_model"],
+                        "openrouter": conf["openrouter_transcribe_model"]}
+        self._shown_provider = ""
+        self._select_data(self.transcribe_provider, conf["transcribe_provider"])
+        self._provider_changed()  # selecting index 0 fires no signal
+        self.cleanup_enabled.setChecked(conf["cleanup_enabled"])
         self.cleanup_model.setCurrentText(conf["cleanup_model"])
         self.cleanup_prompt.setPlainText(conf["cleanup_prompt"] or cfg.default_cleanup_prompt())
         self.transcribe_prompt.setPlainText(conf["transcribe_prompt"])
@@ -443,9 +482,16 @@ class SettingsWindow(QDialog):
         conf["keep_audio"] = self.keep_audio.isChecked()
 
         conf["openai_api_key"] = self.openai_key.text().strip()
-        conf["transcribe_model"] = self.transcribe_model.currentText().strip()
-        conf["cleanup_enabled"] = self.cleanup_enabled.isChecked()
         conf["openrouter_api_key"] = self.openrouter_key.text().strip()
+
+        provider = self.transcribe_provider.currentData() or "openai"
+        self._models[provider] = self.transcribe_model.currentText().strip()
+        conf["transcribe_provider"] = provider
+        for key, name in (("openai", "transcribe_model"),
+                          ("openrouter", "openrouter_transcribe_model")):
+            conf[name] = self._models[key].strip() or cfg.DEFAULTS[name]
+
+        conf["cleanup_enabled"] = self.cleanup_enabled.isChecked()
         conf["cleanup_model"] = self.cleanup_model.currentText().strip()
 
         # Store an empty prompt when it matches the default, so switching the
@@ -476,6 +522,54 @@ class SettingsWindow(QDialog):
         combo.setCurrentIndex(index if index >= 0 else 0)
 
     # ---- api helpers -----------------------------------------------------
+
+    def _provider_changed(self):
+        """Swap the model box over to the newly chosen provider's own model."""
+        if self._shown_provider:
+            self._models[self._shown_provider] = self.transcribe_model.currentText().strip()
+        provider = self.transcribe_provider.currentData() or "openai"
+        self._shown_provider = provider
+        self.transcribe_model.clear()
+        self.transcribe_model.addItems(TRANSCRIBE_MODELS[provider])
+        self.transcribe_model.setCurrentText(self._models[provider])
+        self.transcribe_status.setText("")
+        self.transcribe_note.setText(
+            t("Runs on OpenRouter, with the key above. Word hints reach the "
+              "cleanup model only.")
+            if provider == "openrouter" else
+            t("Runs on OpenAI, with the key above.")
+        )
+
+    def _load_transcribe_models(self):
+        """The model list of whichever provider is selected."""
+        provider = self.transcribe_provider.currentData() or "openai"
+        self.refresh_transcribe_models.setEnabled(False)
+        self.transcribe_status.setText(t("Fetching model list…"))
+        openai_key = self.openai_key.text().strip() or self.conf.openai_key()
+        openrouter_key = self.openrouter_key.text().strip() or self.conf.openrouter_key()
+        base = self.conf["openai_base_url"]
+
+        def work():
+            try:
+                models = (api.openrouter_models(openrouter_key, transcription=True)
+                          if provider == "openrouter"
+                          else api.openai_models(openai_key, base))
+                self._transcribe_models_loaded.emit(models, "")
+            except api.ApiError as exc:
+                self._transcribe_models_loaded.emit([], str(exc))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_transcribe_models_loaded(self, models, error):
+        self.refresh_transcribe_models.setEnabled(True)
+        if error:
+            self.transcribe_status.setText(t("Could not fetch the list: {error}", error=error))
+            return
+        current = self.transcribe_model.currentText()
+        self.transcribe_model.clear()
+        self.transcribe_model.addItems(models)
+        self.transcribe_model.setCurrentText(current)
+        self.transcribe_status.setText(t("{count} models loaded.", count=len(models)))
 
     def _load_models(self):
         self.refresh_models.setEnabled(False)
@@ -520,7 +614,7 @@ class SettingsWindow(QDialog):
 
     def _test_openrouter(self):
         self.or_test_button.setEnabled(False)
-        self.models_label.setText(t("Trying…"))
+        self.or_test_label.setText(t("Trying…"))
         key = self.openrouter_key.text().strip() or self.conf.openrouter_key()
 
         def work():
@@ -533,7 +627,7 @@ class SettingsWindow(QDialog):
 
     def _on_or_test_done(self, ok, message):
         self.or_test_button.setEnabled(True)
-        self.models_label.setText(("✓ " if ok else "✗ ") + message)
+        self.or_test_label.setText(("✓ " if ok else "✗ ") + message)
 
     def _on_test_done(self, ok, message):
         self.test_button.setEnabled(True)
