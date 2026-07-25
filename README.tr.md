@@ -48,6 +48,7 @@ Ayarlar penceresinde iki anahtar istenir:
 | Kaydı başlat / bitir | `Ctrl+Space`, ya da tepsi simgesine tıkla |
 | Kaydı iptal et | Tepsi menüsü → *Kaydı iptal et*, ya da `dikte cancel` |
 | Ayarlar | Tepsi menüsü → *Ayarlar*, ya da `dikte settings` |
+| Güncelleme sonrası yeniden yükle | Tepsi menüsü → *Yeniden başlat*, ya da `dikte restart` |
 | Çık | Tepsi menüsü → *Çık*, ya da `dikte quit` |
 
 Kayıt sırasında ekranın sol alt köşesinde küçük bir gösterge belirir: kırmızı
@@ -79,6 +80,34 @@ bir "izlediğiniz için teşekkürler" elenmesin.
 
 Gösterge ölçtüğü seviyeyi de yazar (`Ses algılanmadı (-56 dB)`); mikrofonun
 alışılmadık ölçüde kısık ya da gürültülüyse eşiği buna bakarak ayarlarsın.
+
+## Yanlış duyulan kelimeleri düzeltme
+
+Konuşma modelleri özel isimleri katlediyor. Ürün adları, teknik terimler ve
+kısaltmalar sesçe benzeyen ama anlamsız bir şeye dönüşüyor; kelimenin kendisi
+yanlışsa noktalama düzeltmenin bir faydası olmuyor. Temizleme modelinden bunları
+bağlamdan onarması isteniyor, bağlam hangi kelime olduğunu netleştirmiyorsa da
+dokunmaması söyleniyor; yani tahmin etmiyor, düzeltiyor.
+
+Temizleme kuralları sekmesine girdiğin isim listesi burada iki iş görüyor:
+transkripsiyon modeline ipucu, temizleme modeline sözlük olarak gidiyor. İkinci
+modelin bozuk bir transkriptte o ismi tanıyabilmesi, doğru yazımını bilmesine
+bağlı. Kutuya `Kubernetes, Grafana, PyQt` yazıldığında:
+
+```
+ham    ıı bugün şey kuber netis üzerinde çalışan servisleri güncelledim
+       yani sonra grafanada bir panel açtım hani ve pay kut ile arayüzü
+       şey bitirdim işte
+
+sonuç  Bugün Kubernetes üzerinde çalışan servisleri güncelledim. Sonra
+       Grafana'da bir panel açtım ve PyQt ile arayüzü bitirdim.
+```
+
+Temizlemenin kendisi başarısız olursa, reddedilen bir anahtar ya da boşalmış bir
+hesap yüzünden, dikte kaybolmasın diye ham transkript yine yapıştırılır; ama
+gösterge kehribar rengine döner ve neyin ters gittiğini söyler, tam gerekçe de
+bildirimde yazar. Temizlenmemiş bir metni model çalışmış gibi sessizce eline
+tutuşturmaz.
 
 ## Dosyadan transkript
 
@@ -124,7 +153,7 @@ Yerleşik dinleyici `input` grubunda olmayı gerektirir:
 | Panoyu geri koy | Yapıştırdıktan sonra eski pano içeriğini iade eder |
 | Sessiz kayıtları atla | Konuşma içermeyen kayıtları API'ye gitmeden eler, yukarıya bak |
 | Temizleme kuralları | Temizleme modeline verilen sistem talimatı. Ne kadar müdahale edeceğini burada belirlersin |
-| Transkripsiyon ipucu | Sık geçen özel isim ve terimler, doğru yazılsınlar diye |
+| İsimler ve terimler | Transkripsiyon modeline ipucu, temizleme modeline sözlük; özel isimlerin doğru yazılması için |
 | Ses kayıtlarını sakla | WAV'lar `~/.local/share/dikte/recordings` altında kalır |
 
 Geçmiş `~/.local/share/dikte/history.jsonl` dosyasında tutulur; son 200 kayıt

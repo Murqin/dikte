@@ -49,6 +49,7 @@ Two API keys go in the settings window:
 | Start / stop recording | `Ctrl+Space`, or click the tray icon |
 | Cancel a recording | Tray menu → *Cancel recording*, or `dikte cancel` |
 | Settings | Tray menu → *Settings*, or `dikte settings` |
+| Reload after an update | Tray menu → *Restart*, or `dikte restart` |
 | Quit | Tray menu → *Quit*, or `dikte quit` |
 
 While recording, a small indicator sits in the bottom-left corner of the
@@ -81,6 +82,34 @@ so a genuine "thanks for watching the demo" survives.
 The indicator reports the level it measured (`No speech detected (-56 dB)`),
 which is what you calibrate the threshold against if your microphone is
 unusually quiet or unusually noisy.
+
+## Repairing misheard words
+
+Speech models mangle proper nouns. Product names, technical terms and acronyms
+come back as something that sounds right and means nothing, and no amount of
+punctuation fixing helps if the word itself is wrong. The cleanup model is asked
+to repair those from context, and to leave the word alone when the context does
+not make the intended one clear, so it corrects rather than guesses.
+
+The list of names you enter under Cleanup rules does double duty here: it goes
+to the transcription model as a hint, and to the cleanup model as a glossary.
+Knowing how a name is spelled is what lets the second model recognise it in a
+garbled transcript. With `Kubernetes, Grafana, PyQt`
+in that box:
+
+```
+raw    ıı bugün şey kuber netis üzerinde çalışan servisleri güncelledim
+       yani sonra grafanada bir panel açtım hani ve pay kut ile arayüzü
+       şey bitirdim işte
+
+result Bugün Kubernetes üzerinde çalışan servisleri güncelledim. Sonra
+       Grafana'da bir panel açtım ve PyQt ile arayüzü bitirdim.
+```
+
+When cleanup itself fails, a rejected key or an empty account, the raw
+transcript is still pasted so the dictation is never lost, but the indicator
+turns amber and says what went wrong, with the full reason in a notification.
+It never quietly hands you an uncleaned transcript as though the model had run.
 
 ## Transcribing a file
 
@@ -126,7 +155,7 @@ Stored in `~/.config/dikte/config.json`, mode 600, since the API keys live there
 | Restore clipboard | Puts your previous clipboard back after pasting |
 | Skip silent recordings | Drops recordings with no speech before any API call, see above |
 | Cleanup rules | The system prompt handed to the cleanup model. This is where you decide how much it may touch your words |
-| Transcription hint | Names and terms you use often, so they get spelled correctly |
+| Names and terms | A hint for the transcription model and a glossary for the cleanup model, so your proper nouns survive |
 | Keep audio files | WAVs are kept in `~/.local/share/dikte/recordings` |
 
 History lives in `~/.local/share/dikte/history.jsonl`; the last 200 entries are

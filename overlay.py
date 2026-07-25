@@ -20,8 +20,10 @@ REC = QColor(240, 78, 82)
 BUSY = QColor(120, 170, 255)
 OK = QColor(80, 205, 140)
 ERR = QColor(240, 100, 90)
+WARN = QColor(240, 180, 80)
 
-STATE_COLORS = {"recording": REC, "busy": BUSY, "done": OK, "error": ERR}
+STATE_COLORS = {"recording": REC, "busy": BUSY, "done": OK,
+                "warning": WARN, "error": ERR}
 
 
 class Overlay(QWidget):
@@ -73,6 +75,13 @@ class Overlay(QWidget):
 
     def show_done(self, message="", msec=1100):
         self.state = "done"
+        self.message = message
+        self._appear()
+        self._hide_timer.start(msec)
+
+    def show_warning(self, message, msec=9000):
+        """Finished, but something the user should know about went wrong."""
+        self.state = "warning"
         self.message = message
         self._appear()
         self._hide_timer.start(msec)
@@ -184,6 +193,14 @@ class Overlay(QWidget):
             painter.drawPolyline(
                 QPointF(cx - 7, cy), QPointF(cx - 2, cy + 5.5), QPointF(cx + 7.5, cy - 6)
             )
+        elif self.state == "warning":
+            pen = QPen(accent, 2.6)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            painter.drawLine(QPointF(cx, cy - 7), QPointF(cx, cy + 1.5))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(accent)
+            painter.drawEllipse(QPointF(cx, cy + 6), 1.5, 1.5)
         else:  # error
             pen = QPen(accent, 2.4)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -222,7 +239,7 @@ class Overlay(QWidget):
 
     def _draw_message(self, painter):
         painter.setFont(self._label_font())
-        painter.setPen(TEXT if self.state != "error" else ERR)
+        painter.setPen({"error": ERR, "warning": WARN}.get(self.state, TEXT))
         box = QRectF(46, 0, self.width() - 60, self.height())
         metrics = QFontMetrics(self._label_font())
         text = metrics.elidedText(self.message, Qt.TextElideMode.ElideRight, int(box.width()))

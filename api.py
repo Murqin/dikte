@@ -17,7 +17,24 @@ TIMESTAMP_MODEL = "whisper-1"
 
 
 class ApiError(Exception):
-    pass
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
+
+
+def explain(exc, service):
+    """Turn an HTTP status into something the user can act on."""
+    if exc.status in (401, 403):
+        return ApiError(t("{service} rejected the API key (HTTP {code}). Open "
+                          "Settings and check it.", service=service, code=exc.status),
+                        exc.status)
+    if exc.status == 402:
+        return ApiError(t("{service} says the account is out of credit (HTTP 402).",
+                          service=service), exc.status)
+    if exc.status == 429:
+        return ApiError(t("{service} is rate limiting you (HTTP 429). Try again in "
+                          "a moment.", service=service), exc.status)
+    return ApiError(f"{service}: {exc}", exc.status)
 
 
 def _request(url, data, headers, timeout=120):
@@ -27,7 +44,7 @@ def _request(url, data, headers, timeout=120):
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")
-        raise ApiError(f"HTTP {exc.code}: {_extract_error(body)}") from exc
+        raise ApiError(f"HTTP {exc.code}: {_extract_error(body)}", exc.code) from exc
     except urllib.error.URLError as exc:
         raise ApiError(t("Could not connect: {reason}", reason=exc.reason)) from exc
     except json.JSONDecodeError as exc:
@@ -89,9 +106,12 @@ def _transcribe_request(wav_path, api_key, model, language, prompt, base_url,
         "Content-Type": ctype,
         "User-Agent": USER_AGENT,
     }
-    return _request(
-        f"{base_url.rstrip('/')}/audio/transcriptions", body, headers, timeout=timeout
-    )
+    try:
+        return _request(
+            f"{base_url.rstrip('/')}/audio/transcriptions", body, headers, timeout=timeout
+        )
+    except ApiError as exc:
+        raise explain(exc, "OpenAI") from None
 
 
 def transcribe(wav_path, api_key, model="gpt-4o-transcribe", language="", prompt="",
@@ -144,12 +164,15 @@ def cleanup(text, api_key, model, system_prompt, base_url=OPENROUTER_URL, timeou
         "HTTP-Referer": "https://github.com/yusufipk/dikte",
         "X-Title": "Dikte",
     }
-    data = _request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        json.dumps(payload).encode("utf-8"),
-        headers,
-        timeout=timeout,
-    )
+    try:
+        data = _request(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json.dumps(payload).encode("utf-8"),
+            headers,
+            timeout=timeout,
+        )
+    except ApiError as exc:
+        raise explain(exc, "OpenRouter") from None
     choices = data.get("choices") or []
     if not choices:
         raise ApiError(_extract_error(json.dumps(data)))
@@ -166,11 +189,28 @@ def _get_json(url, headers, timeout=20):
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")
-        raise ApiError(f"HTTP {exc.code}: {_extract_error(body)}") from exc
+        raise ApiError(f"HTTP {exc.code}: {_extract_error(body)}", exc.code) from exc
     except urllib.error.URLError as exc:
         raise ApiError(t("Could not connect: {reason}", reason=exc.reason)) from exc
     except json.JSONDecodeError as exc:
         raise ApiError(t("Could not parse the response: {error}", error=exc)) from exc
+
+
+def openrouter_key_status(api_key):
+    """Check the key against OpenRouter's own /key endpoint."""
+    if not api_key:
+        raise ApiError(t("OpenRouter API key is empty. Add it in Settings."))
+    try:
+        data = _get_json(f"{OPENROUTER_URL}/key",
+                         {"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT})
+    except ApiError as exc:
+        raise explain(exc, "OpenRouter") from None
+    info = data.get("data") or {}
+    limit, usage = info.get("limit"), info.get("usage")
+    if limit is None:
+        return t("Key works, no spending limit set.")
+    return t("Key works. Used {usage} of {limit}.",
+             usage=round(float(usage or 0), 3), limit=round(float(limit), 3))
 
 
 def openrouter_models(api_key=""):
@@ -185,10 +225,13 @@ def openrouter_models(api_key=""):
 def openai_models(api_key, base_url="https://api.openai.com/v1"):
     if not api_key:
         raise ApiError(t("OpenAI API key is empty. Add it in Settings."))
-    data = _get_json(
-        f"{base_url.rstrip('/')}/models",
-        {"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT},
-    )
+    try:
+        data = _get_json(
+            f"{base_url.rstrip('/')}/models",
+            {"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT},
+        )
+    except ApiError as exc:
+        raise explain(exc, "OpenAI") from None
     ids = [m["id"] for m in data.get("data", []) if m.get("id")]
     audio = [i for i in ids if "transcribe" in i or "whisper" in i]
     return sorted(audio or ids)

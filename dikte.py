@@ -6,6 +6,7 @@ Usage:
   dikte.py toggle        start / stop recording
   dikte.py cancel        discard the current recording
   dikte.py settings      open the settings window
+  dikte.py restart       reload the running instance
   dikte.py quit          shut the application down
 """
 
@@ -84,6 +85,10 @@ class Dikte:
         self.settings_action = QAction(t("Settings…"), self.menu)
         self.settings_action.triggered.connect(self.open_settings)
         self.menu.addAction(self.settings_action)
+
+        self.restart_action = QAction(t("Restart"), self.menu)
+        self.restart_action.triggered.connect(self.restart)
+        self.menu.addAction(self.restart_action)
         self.menu.addSeparator()
 
         self.quit_action = QAction(t("Quit"), self.menu)
@@ -167,14 +172,25 @@ class Dikte:
         if seconds >= self.conf["max_seconds"]:
             self.stop()
 
-    def _on_recorded(self, wav_path, duration, peak):
-        self.pipeline.run(wav_path, duration, peak)
+    def _on_recorded(self, wav_path, duration, rms_values):
+        self.pipeline.run(wav_path, duration, rms_values)
 
-    def _on_finished(self, _raw, text):
-        preview = text.replace("\n", " ")
-        preview = preview[:48] + ("…" if len(preview) > 48 else "")
-        action = t("Pasted") if self.conf["auto_paste"] else t("Copied")
-        self.overlay.show_done(t("{action}: {preview}", action=action, preview=preview))
+    def _on_finished(self, _raw, text, warning):
+        if warning:
+            # The text was still pasted, but cleanup did not run. Say so loudly:
+            # a rejected key otherwise looks exactly like working dictation.
+            self.overlay.show_warning(
+                t("Pasted raw, cleanup failed: {error}", error=warning.splitlines()[0])
+            )
+            self.tray.showMessage(
+                t("Dikte: cleanup failed"), warning,
+                QSystemTrayIcon.MessageIcon.Warning, 10000,
+            )
+        else:
+            preview = text.replace("\n", " ")
+            preview = preview[:48] + ("…" if len(preview) > 48 else "")
+            action = t("Pasted") if self.conf["auto_paste"] else t("Copied")
+            self.overlay.show_done(t("{action}: {preview}", action=action, preview=preview))
         self._set_state(IDLE)
 
     def _on_error(self, message):
@@ -210,6 +226,15 @@ class Dikte:
         else:
             self.evdev.stop()
 
+    def restart(self):
+        """Replace this process with a fresh one, picking up code and settings."""
+        if self.settings_window is not None:
+            self.settings_window.close()
+        self.shutdown()
+        QLocalServer.removeServer(SERVER_NAME)
+        script = os.path.realpath(__file__)
+        os.execv(sys.executable, [sys.executable, script])
+
     def shutdown(self):
         self.evdev.stop()
         if self.state == RECORDING:
@@ -240,7 +265,8 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     command = args[0] if args else ""
 
-    if command and command not in ("toggle", "cancel", "settings", "quit", "start", "stop"):
+    if command and command not in ("toggle", "cancel", "settings", "restart",
+                                   "quit", "start", "stop"):
         print(__doc__)
         return 2
 
@@ -253,7 +279,7 @@ def main():
     if send_command(command or "settings"):
         return 0
 
-    if command in ("cancel", "quit", "stop"):
+    if command in ("cancel", "quit", "stop", "restart"):
         return 0
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -262,6 +288,9 @@ def main():
     dikte = Dikte(app)
 
     server = QLocalServer()
+    # Qt puts the socket in /tmp, so keep it to this user: commands like
+    # "quit" should not be reachable by anyone else on the machine.
+    server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
     QLocalServer.removeServer(SERVER_NAME)
     if not server.listen(SERVER_NAME):
         print(f"dikte: could not open the IPC socket: {server.errorString()}")
@@ -279,6 +308,7 @@ def main():
                 "stop": dikte.stop,
                 "cancel": dikte.cancel,
                 "settings": dikte.open_settings,
+                "restart": dikte.restart,
                 "quit": app.quit,
             }.get(payload)
             if handler:

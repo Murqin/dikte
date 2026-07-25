@@ -39,6 +39,7 @@ TR = {
     "Working…": "İşleniyor…",
     "Cancel recording": "Kaydı iptal et",
     "Settings…": "Ayarlar…",
+    "Restart": "Yeniden başlat",
     "Quit": "Çık",
     "Dikte: ready": "Dikte: hazır",
     "Dikte: recording": "Dikte: kaydediyor",
@@ -52,6 +53,14 @@ TR = {
     "Copied": "Panoya kopyalandı",
     "{action}: {preview}": "{action}: {preview}",
     "Cleanup skipped: {error}": "Temizleme atlandı: {error}",
+    "Pasted raw, cleanup failed: {error}": "Ham metin yapıştırıldı, temizleme başarısız: {error}",
+    "Dikte: cleanup failed": "Dikte: temizleme başarısız",
+    "{service} rejected the API key (HTTP {code}). Open Settings and check it.":
+        "{service} API anahtarını reddetti (HTTP {code}). Ayarlar'ı açıp kontrol et.",
+    "{service} says the account is out of credit (HTTP 402).":
+        "{service} hesapta kredi kalmadığını söylüyor (HTTP 402).",
+    "{service} is rate limiting you (HTTP 429). Try again in a moment.":
+        "{service} hız sınırı uyguluyor (HTTP 429). Birazdan tekrar dene.",
     "No speech detected": "Ses algılanmadı",
     "No speech detected ({level} dB)": "Ses algılanmadı ({level} dB)",
     "Discarded a stock phrase: “{text}”": "Kalıp cümle atıldı: “{text}”",
@@ -152,6 +161,9 @@ TR = {
     "Fetching model list…": "Model listesi çekiliyor…",
     "Could not fetch the list: {error}": "Liste alınamadı: {error}",
     "{count} models loaded.": "{count} model yüklendi.",
+    "Key works, no spending limit set.": "Anahtar çalışıyor, harcama sınırı yok.",
+    "Key works. Used {usage} of {limit}.":
+        "Anahtar çalışıyor. {limit} sınırının {usage} kadarı kullanılmış.",
 
     # --- settings: prompt ------------------------------------------------
     "System instruction given to the cleanup model. This is where you decide "
@@ -159,10 +171,12 @@ TR = {
         "Temizleme modeline verilen sistem talimatı. Ne kadar müdahale edeceğini "
         "burada belirlersin.",
     "Reset to default": "Varsayılana döndür",
-    "Transcription hint (optional): names and terms you say often. Helps "
-    "Whisper spell them correctly.":
-        "Transkripsiyon ipucu (isteğe bağlı): sık geçen özel isimler, terimler. "
-        "Whisper'ın bunları doğru yazmasına yardım eder.",
+    "Names and terms you say often (optional). They go to the transcription "
+    "model as a hint, and to the cleanup model as a glossary, so it can repair "
+    "the ones that still come out wrong.":
+        "Sık kullandığın isimler ve terimler (isteğe bağlı). Transkripsiyon "
+        "modeline ipucu, temizleme modeline sözlük olarak gider; böylece yanlış "
+        "çıkanları düzeltebilir.",
 
     # --- settings: audio file --------------------------------------------
     "Transcribe an existing audio or video file with the same models.":

@@ -21,7 +21,7 @@ CHUNK_SECONDS = audio.CHUNK_FRAMES / audio.RATE
 
 class Pipeline(QObject):
     stage = pyqtSignal(str)          # human-readable progress line
-    finished = pyqtSignal(str, str)  # raw transcript, final text
+    finished = pyqtSignal(str, str, str)  # raw transcript, final text, warning
     failed = pyqtSignal(str)
 
     def __init__(self, conf, parent=None):
@@ -75,6 +75,7 @@ class Pipeline(QObject):
                 return
 
             text = raw
+            warning = ""
             if conf["cleanup_enabled"]:
                 self.stage.emit(t("Cleaning up…"))
                 try:
@@ -86,9 +87,11 @@ class Pipeline(QObject):
                         base_url=conf["openrouter_base_url"],
                     )
                 except api.ApiError as exc:
-                    # A failed cleanup must not cost us the transcript.
+                    # Keep the transcript, but never let the failure pass unseen:
+                    # a rejected key would otherwise look like working dictation.
                     text = raw
-                    self.stage.emit(t("Cleanup skipped: {error}", error=exc))
+                    warning = str(exc)
+                    print(f"dikte: cleanup failed: {exc}", file=sys.stderr)
 
             previous = paste.read_clipboard() if conf["restore_clipboard"] else None
             paste.copy(text)
@@ -106,11 +109,12 @@ class Pipeline(QObject):
                 "elapsed": round(time.monotonic() - started, 1),
                 "model": conf["transcribe_model"],
                 "cleanup_model": conf["cleanup_model"] if conf["cleanup_enabled"] else "",
+                "cleanup_error": warning,
                 "raw": raw,
                 "text": text,
             })
             cfg.trim_history(conf["history_limit"])
-            self.finished.emit(raw, text)
+            self.finished.emit(raw, text, warning)
 
         except (api.ApiError, paste.PasteError) as exc:
             print(f"dikte: {exc}", file=sys.stderr)

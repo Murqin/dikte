@@ -41,6 +41,7 @@ class SettingsWindow(QDialog):
 
     _models_loaded = pyqtSignal(list, str)
     _test_done = pyqtSignal(bool, str)
+    _or_test_done = pyqtSignal(bool, str)
 
     def __init__(self, conf, launch_command, parent=None):
         super().__init__(parent)
@@ -72,6 +73,7 @@ class SettingsWindow(QDialog):
 
         self._models_loaded.connect(self._on_models_loaded)
         self._test_done.connect(self._on_test_done)
+        self._or_test_done.connect(self._on_or_test_done)
         self.transcriber.progress.connect(self._on_file_progress)
         self.transcriber.finished.connect(self._on_file_finished)
         self.transcriber.failed.connect(self._on_file_failed)
@@ -197,9 +199,14 @@ class SettingsWindow(QDialog):
         model_row.addWidget(self.refresh_models)
         orr_form.addRow(t("Model"), self._wrap(model_row))
 
+        self.or_test_button = QPushButton(t("Test key"))
+        self.or_test_button.clicked.connect(self._test_openrouter)
         self.models_label = QLabel("")
         self.models_label.setWordWrap(True)
-        orr_form.addRow("", self.models_label)
+        test_row = QHBoxLayout()
+        test_row.addWidget(self.or_test_button)
+        test_row.addWidget(self.models_label, 1)
+        orr_form.addRow("", self._wrap(test_row))
         outer.addWidget(orr)
         outer.addStretch(1)
         return page
@@ -221,8 +228,9 @@ class SettingsWindow(QDialog):
         )
         layout.addWidget(reset, 0, Qt.AlignmentFlag.AlignRight)
 
-        hint = QLabel(t("Transcription hint (optional): names and terms you say often. "
-                        "Helps Whisper spell them correctly."))
+        hint = QLabel(t("Names and terms you say often (optional). They go to the "
+                        "transcription model as a hint, and to the cleanup model as a "
+                        "glossary, so it can repair the ones that still come out wrong."))
         hint.setWordWrap(True)
         layout.addWidget(hint)
         self.transcribe_prompt = QPlainTextEdit()
@@ -473,6 +481,23 @@ class SettingsWindow(QDialog):
                 self._test_done.emit(False, str(exc))
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _test_openrouter(self):
+        self.or_test_button.setEnabled(False)
+        self.models_label.setText(t("Trying…"))
+        key = self.openrouter_key.text().strip() or self.conf.openrouter_key()
+
+        def work():
+            try:
+                self._or_test_done.emit(True, api.openrouter_key_status(key))
+            except api.ApiError as exc:
+                self._or_test_done.emit(False, str(exc))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_or_test_done(self, ok, message):
+        self.or_test_button.setEnabled(True)
+        self.models_label.setText(("✓ " if ok else "✗ ") + message)
 
     def _on_test_done(self, ok, message):
         self.test_button.setEnabled(True)
