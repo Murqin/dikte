@@ -22,25 +22,22 @@ just the Python standard library and PyQt6.
 ## Install
 
 ```sh
+sudo pacman -S --needed pipewire-audio wl-clipboard ydotool ffmpeg python-pyqt6
+systemctl --user enable --now ydotool     # needed for auto-paste
+
 ./install.sh                 # or:  ./install.sh "Ctrl+Alt+Space"
 dikte                        # the settings window opens on first run
 ```
 
-System packages (Arch/CachyOS):
+`install.sh` adds the `dikte` command, a menu entry, an autostart entry and the
+KDE shortcut.
 
-```sh
-sudo pacman -S --needed pipewire-audio wl-clipboard ydotool ffmpeg python-pyqt6
-systemctl --user enable --now ydotool     # needed for auto-paste
-```
-
-Two API keys go in the settings window:
-
-- **OpenAI**: speech to text (`gpt-4o-transcribe`). Falls back to the
-  `OPENAI_API_KEY` environment variable when left empty.
-- **OpenRouter**: transcript cleanup (`google/gemini-3.5-flash-lite` by
-  default, any model on the list works). Falls back to `OPENROUTER_API_KEY`.
-  Cleanup can be switched off entirely, in which case the raw transcript is
-  pasted.
+Two keys go in the settings window: **OpenAI** for speech to text
+(`gpt-4o-transcribe`) and **OpenRouter** for the cleanup
+(`google/gemini-3.5-flash-lite` by default, any model on the list works). They
+fall back to `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, and are stored in
+`~/.config/dikte/config.json`, mode 600. Cleanup can be switched off, in which
+case the raw transcript is pasted.
 
 ## Using it
 
@@ -52,114 +49,50 @@ Two API keys go in the settings window:
 | Reload after an update | Tray menu → *Restart*, or `dikte restart` |
 | Quit | Tray menu → *Quit*, or `dikte quit` |
 
-While recording, a small indicator sits in the bottom-left corner of the
-screen: a red dot, a live waveform, the elapsed time. Then it walks through
-"Transcribing…", "Cleaning up…" and finally shows the first line of what it
-pasted. The indicator never takes focus, so you stay in the window you were
-working in.
+An indicator in the screen corner shows a red dot, a live waveform and the
+elapsed time, then the stage it is on. It never takes focus. Pressing
+`Ctrl+Space` again while Dikte is still working does nothing; nothing queues up.
 
-## Silence never reaches the API
+## What it does
 
-Handed near-silence, a transcription model does not return an empty string.
-It invents one. Whisper is notorious for answering a quiet two seconds with
-"Thanks for watching" or, in Turkish, "Altyazı M.K.". An accidental
-`Ctrl+Space` would otherwise cost you an API call and paste a sentence you
-never said.
+- **Silence never reaches the API.** Handed near-silence, a transcription model
+  invents a sentence instead of returning nothing ("Thanks for watching", or in
+  Turkish "Altyazı M.K."). A recording is dropped when nothing rose 10 dB above
+  *that recording's own* noise floor for at least 0.3 s, which is also what
+  removes steady fan noise however loud, or when its loud end sits below
+  -55 dBFS. The indicator reports the level it measured, which is what you
+  calibrate the threshold against.
+- **Misheard words are repaired.** Speech models fail phonetically on proper
+  nouns, so the cleanup model is asked to fix those from context, and to leave
+  the word alone when the context does not make the intended one clear. The names
+  you list under Cleanup rules go to the transcription model as a hint and to the
+  cleanup model as a glossary, which is what lets it recognise "kuber netis":
 
-Dikte checks before spending the call, and the check is relative rather than
-absolute, because microphone gain varies far too much between machines for a
-fixed threshold to mean anything. A recording is dropped when any of these holds:
+  ```
+  raw    ıı bugün şey kuber netis üzerinde çalışan servisleri güncelledim
+         yani sonra grafanada bir panel açtım hani ve pay kut ile arayüzü
+         şey bitirdim işte
 
-- the loud end of it sits below the absolute floor (default -55 dBFS);
-- nothing rose 10 dB above *this recording's own* noise floor for at least
-  0.3 s, which is also what removes steady fan or hiss, however loud;
-- the level never moved at all near the floor.
+  result Bugün Kubernetes üzerinde çalışan servisleri güncelledim. Sonra
+         Grafana'da bir panel açtım ve PyQt ile arayüzü bitirdim.
+  ```
+- **A failed cleanup is never silent.** The raw transcript is still pasted so the
+  dictation is not lost, but the indicator turns amber with the reason instead of
+  looking like a normal run.
+- **Audio and video files** run through the same models under Settings → Audio
+  file, optionally with `[mm:ss]` timestamps, chunked through ffmpeg when long.
+- **History** of every dictation under Settings → History, with a size limit and
+  right-click to delete.
+- **Turkish and English interface**, following the system locale by default.
 
-When something slips through anyway, a second filter catches the handful of
-stock phrases the models fall back on, but only for clips under six seconds,
-so a genuine "thanks for watching the demo" survives.
+## The global shortcut needs one logout
 
-The indicator reports the level it measured (`No speech detected (-56 dB)`),
-which is what you calibrate the threshold against if your microphone is
-unusually quiet or unusually noisy.
-
-## Repairing misheard words
-
-Speech models mangle proper nouns. Product names, technical terms and acronyms
-come back as something that sounds right and means nothing, and no amount of
-punctuation fixing helps if the word itself is wrong. The cleanup model is asked
-to repair those from context, and to leave the word alone when the context does
-not make the intended one clear, so it corrects rather than guesses.
-
-The list of names you enter under Cleanup rules does double duty here: it goes
-to the transcription model as a hint, and to the cleanup model as a glossary.
-Knowing how a name is spelled is what lets the second model recognise it in a
-garbled transcript. With `Kubernetes, Grafana, PyQt`
-in that box:
-
-```
-raw    ıı bugün şey kuber netis üzerinde çalışan servisleri güncelledim
-       yani sonra grafanada bir panel açtım hani ve pay kut ile arayüzü
-       şey bitirdim işte
-
-result Bugün Kubernetes üzerinde çalışan servisleri güncelledim. Sonra
-       Grafana'da bir panel açtım ve PyQt ile arayüzü bitirdim.
-```
-
-When cleanup itself fails, a rejected key or an empty account, the raw
-transcript is still pasted so the dictation is never lost, but the indicator
-turns amber and says what went wrong, with the full reason in a notification.
-It never quietly hands you an uncleaned transcript as though the model had run.
-
-## Transcribing a file
-
-Settings → **Audio file** takes any audio or video file and runs it through the
-same models. Two options, both remembered between runs:
-
-- **Add timestamps**: prefixes every segment with `[mm:ss]`. This switches to
-  `whisper-1`, the only model that returns segment times.
-- **Run the cleanup model afterwards**: same cleanup as live dictation, with an
-  extra rule telling the model to leave the timestamps alone.
-
-Long files are converted to 16 kHz mono with ffmpeg and split into ten-minute
-chunks, each transcribed in turn with its timestamps shifted into place. The
-result can be copied or saved as `.txt`.
-
-## About the global shortcut
-
-KWin only reads `kglobalshortcutsrc` at startup. `install.sh` writes the
-shortcut to the right place, but **it will not fire until you log out and back
-in.** Two ways around that:
-
-1. Log out and in. This is the clean solution: the key is swallowed by KWin,
-   so it never leaks into other applications.
-2. Settings → Shortcut → turn on the **built-in listener**. It reads
-   `/dev/input` and catches the combination itself, working immediately. The
-   difference: it does not swallow the key, so `Ctrl+Space` also reaches the
-   focused application (some editors will pop up autocomplete). If that bothers
-   you, change the shortcut to something like `Ctrl+Alt+Space`.
-
-The built-in listener needs your user to be in the `input` group:
-`sudo usermod -aG input $USER`.
-
-## Settings
-
-Stored in `~/.config/dikte/config.json`, mode 600, since the API keys live there.
-
-| Setting | What it does |
-| --- | --- |
-| Interface language | Turkish, English, or follow the system locale |
-| Microphone | Pick a specific source or use the default |
-| Speech language | Language hint for transcription, or automatic detection |
-| Paste key | `ctrl+v` / `ctrl+shift+v` / `shift+insert`. Terminals usually want the second |
-| Restore clipboard | Puts your previous clipboard back after pasting |
-| Skip silent recordings | Drops recordings with no speech before any API call, see above |
-| Cleanup rules | The system prompt handed to the cleanup model. This is where you decide how much it may touch your words |
-| Names and terms | A hint for the transcription model and a glossary for the cleanup model, so your proper nouns survive |
-| Keep audio files | WAVs are kept in `~/.local/share/dikte/recordings` |
-
-History lives in `~/.local/share/dikte/history.jsonl`; the last 200 entries are
-browsable under Settings → History.
+KWin only reads `kglobalshortcutsrc` at startup, so the shortcut `install.sh`
+writes will not fire until you log out and back in. Until then, Settings →
+Shortcut → **built-in listener** reads `/dev/input` and catches the combination
+itself. The difference: it does not swallow the key, so `Ctrl+Space` also reaches
+the focused application (some editors will pop up autocomplete). The listener
+needs your user in the `input` group: `sudo usermod -aG input $USER`.
 
 ## Layout
 
@@ -177,14 +110,8 @@ paste.py          wl-clipboard and ydotool wrappers
 i18n.py           the string table
 ```
 
-## Known limits
-
-- The indicator is drawn through XWayland, because a Wayland client cannot
-  place a window in a screen corner. `dikte.py` sets `QT_QPA_PLATFORM=xcb` for
-  this reason.
-- Auto-paste goes through `ydotool`'s virtual keyboard. Without a running
-  `ydotoold` the text is only copied, and the indicator says so.
-- Shortcut presses during "Transcribing…" are ignored.
+The indicator is drawn through XWayland, because a Wayland client cannot place a
+window in a screen corner; `dikte.py` sets `QT_QPA_PLATFORM=xcb` for that.
 
 ## License
 
