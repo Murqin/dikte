@@ -35,6 +35,7 @@ class Overlay(QWidget):
         self.levels = [0.0] * BARS
         self.seconds = 0.0
         self._phase = 0.0
+        self._concealed = True
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -55,7 +56,7 @@ class Overlay(QWidget):
 
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
-        self._hide_timer.timeout.connect(self.hide)
+        self._hide_timer.timeout.connect(self._conceal)
 
     # ---- public API --------------------------------------------------
 
@@ -73,7 +74,7 @@ class Overlay(QWidget):
         self._hide_timer.stop()
         self._appear()
 
-    def show_done(self, message="", msec=1100):
+    def show_done(self, message="", msec=2000):
         self.state = "done"
         self.message = message
         self._appear()
@@ -93,9 +94,8 @@ class Overlay(QWidget):
         self._hide_timer.start(msec)
 
     def dismiss(self):
-        self._anim.stop()
         self._hide_timer.stop()
-        self.hide()
+        self._conceal()
 
     def push_level(self, level):
         self.levels = self.levels[1:] + [level]
@@ -110,9 +110,27 @@ class Overlay(QWidget):
         self._reposition()
         if not self.isVisible():
             self.show()
-        self.raise_()
+        if self._concealed:
+            self.raise_()
+            self._concealed = False
         if not self._anim.isActive():
             self._anim.start()
+
+    def _conceal(self):
+        """Empty the window out instead of unmapping it.
+
+        Unmapping tears the window down and the next dictation builds a new one,
+        which makes the compositor repaint whatever sits underneath: on a tiled
+        desktop the terminal behind visibly flinches every time the indicator
+        goes away. So the window stays mapped and simply paints nothing. It has
+        to be a real repaint, not just zero opacity: with the animation stopped
+        nothing else damages the surface, and the stale frame would sit on the
+        screen until some other event made the compositor redraw it.
+        """
+        self._anim.stop()
+        self.state = "hidden"
+        self._concealed = True
+        self.repaint()
 
     def _resize_to_content(self):
         if self.state == "recording":
@@ -147,6 +165,9 @@ class Overlay(QWidget):
     # ---- painting --------------------------------------------------
 
     def paintEvent(self, _event):
+        if self.state == "hidden":
+            return  # translucent window, nothing drawn means nothing shown
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
