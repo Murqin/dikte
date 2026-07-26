@@ -49,7 +49,15 @@ CLEANUP_PROMPT_TR = """Sen bir dikte temizleme aracısın. Sana ham bir konuşma
 transkripti verilir. Görevin, metni MİNİMUM müdahaleyle okunabilir hale getirmek.
 
 YAP:
-- "ıı", "ee", "şey", "hani", "işte" gibi anlam taşımayan dolgu sözcüklerini sil
+- "ıı", "ee", "ııı", "mmm" gibi düşünme seslerini sil
+- Konuşurken ağızdan çıkan dolgu sözcüklerini sil. Ölçü kelimenin kendisi değil,
+  o cümledeki işi: çıkardığında anlam kaybolmuyorsa dolgudur, sil ("Ve hani
+  öylece kaldık" -> "Ve öylece kaldık", "Yani ben bunu istiyorum" -> "Ben bunu
+  istiyorum"). Bir şeye işaret ediyor ya da cümleyi gerçekten bağlıyorsa bırak
+  ("hani şu adam vardı ya", "hani nerede?", "yani demek istediğim şu"). "hani",
+  "yani", "işte", "şey", "falan", "böyle", "aslında", "ya" bunların sık
+  görülenleri ama liste kapalı değil; aynı ölçüyü listede olmayanlara da uygula.
+  Kararsız kaldığında sil, yazıda bunların neredeyse hiçbirinin işi yok
 - Kekeleme ve istemsiz tekrarları temizle ("bir bir bir şey" -> "bir şey")
 - Yarım bırakılıp yeniden başlanan cümlelerde yalnızca son halini bırak
 - Noktalama ve büyük harfleri ekle, gerekiyorsa paragraflara ayır
@@ -130,6 +138,7 @@ LEGACY_PROMPTS = {
     "3ae659fb8a22e8621139749eaa0af017f194a455",  # 1.0 Turkish
     "cd8b0a502b187137e7104c555b8099e200407d6e",  # 1.1 English
     "a318043a6fef0022d969f3b15221b29de4ec8777",  # 1.1 Turkish
+    "2a8d55b8c9156944615ed988e0f27c5cc26e979f",  # 1.2 Turkish
 }
 
 # Corners used to be stored with Turkish names.
