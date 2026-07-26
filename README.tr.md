@@ -81,7 +81,7 @@ süreyi, ardından hangi aşamada olduğunu gösterir. Odak almaz. Dikte çalı�
   normal bir çalışma gibi görünmez.
 - **Ses ve video dosyaları** Ayarlar → Ses dosyası sekmesinde aynı modellerden
   geçer; istersen `[dd:ss]` zaman damgalarıyla, uzun dosyalar ffmpeg ile
-  parçalanarak.
+  parçalanarak, sonuç `.txt` ya da `.srt` altyazı olarak kaydedilerek.
 - **Geçmiş** Ayarlar → Geçmiş sekmesinde; boyut sınırı var, sağ tıklayıp
   silebilirsin.
 - **Türkçe ve İngilizce arayüz**, varsayılan olarak sistem dilini izler.

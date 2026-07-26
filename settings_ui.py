@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 import api
 import audio
 import config as cfg
+import filetranscribe
 import hotkey
 from filetranscribe import FileTranscriber
 from i18n import t
@@ -315,9 +316,16 @@ class SettingsWindow(QDialog):
         )
         save = QPushButton(t("Save as .txt"))
         save.clicked.connect(self._save_transcript)
+        self.file_save_srt = QPushButton(t("Save as .srt"))
+        self.file_save_srt.setToolTip(
+            t("Subtitles, timed from the segments. Needs the timestamps option.")
+        )
+        self.file_save_srt.setEnabled(False)
+        self.file_save_srt.clicked.connect(self._save_subtitles)
         out_row = QHBoxLayout()
         out_row.addWidget(copy)
         out_row.addWidget(save)
+        out_row.addWidget(self.file_save_srt)
         out_row.addStretch(1)
         layout.addLayout(out_row)
         return page
@@ -642,6 +650,8 @@ class SettingsWindow(QDialog):
         if not getattr(self, "file_path", "") or self.transcriber.busy:
             return
         self.file_output.clear()
+        self.file_segments = []
+        self.file_save_srt.setEnabled(False)
         self.file_run.setEnabled(False)
         self.file_stop.setEnabled(True)
         self.transcriber.start(
@@ -655,8 +665,10 @@ class SettingsWindow(QDialog):
         if message == t("Stopped."):
             self._file_idle()
 
-    def _on_file_finished(self, text):
+    def _on_file_finished(self, text, segments):
         self.file_output.setPlainText(text)
+        self.file_segments = segments
+        self.file_save_srt.setEnabled(bool(segments))
         self.file_status.setText(t("Done: {chars} characters.", chars=len(text)))
         self._file_idle()
 
@@ -669,17 +681,30 @@ class SettingsWindow(QDialog):
         self.file_stop.setEnabled(False)
 
     def _save_transcript(self):
-        text = self.file_output.toPlainText()
+        self._write_transcript(self.file_output.toPlainText(), ".txt",
+                               f"{t('Text files')} (*.txt)")
+
+    def _save_subtitles(self):
+        srt = filetranscribe.to_srt(self.file_output.toPlainText(),
+                                    getattr(self, "file_segments", []))
+        if not srt:
+            self.file_status.setText(t("No timestamped lines to turn into subtitles."))
+            return
+        self._write_transcript(srt, ".srt", f"{t('Subtitle files')} (*.srt)")
+
+    def _write_transcript(self, text, suffix, file_filter):
         if not text:
             return
         base = os.path.splitext(os.path.basename(getattr(self, "file_path", "")))[0]
         start = os.path.join(self.conf["file_last_dir"] or os.path.expanduser("~"),
-                             f"{base or 'transcript'}.txt")
+                             f"{base or 'transcript'}{suffix}")
         path, _ = QFileDialog.getSaveFileName(
-            self, t("Save transcript"), start, f"{t('Text files')} (*.txt)"
+            self, t("Save transcript"), start, file_filter
         )
         if not path:
             return
+        if not path.lower().endswith(suffix):
+            path += suffix
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(text)

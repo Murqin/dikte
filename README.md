@@ -80,7 +80,8 @@ elapsed time, then the stage it is on. It never takes focus. Pressing
   dictation is not lost, but the indicator turns amber with the reason instead of
   looking like a normal run.
 - **Audio and video files** run through the same models under Settings → Audio
-  file, optionally with `[mm:ss]` timestamps, chunked through ffmpeg when long.
+  file, optionally with `[mm:ss]` timestamps, chunked through ffmpeg when long,
+  and saved as `.txt` or as `.srt` subtitles.
 - **History** of every dictation under Settings → History, with a size limit and
   right-click to delete.
 - **Turkish and English interface**, following the system locale by default.

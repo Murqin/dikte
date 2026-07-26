@@ -151,7 +151,7 @@ def transcribe(target, wav_path, language="", prompt="", timeout=300):
 
 
 def transcribe_segments(target, wav_path, language="", prompt="", timeout=300):
-    """[(start_seconds, text)] using whisper-1's verbose response."""
+    """[(start_seconds, end_seconds, text)] using whisper-1's verbose response."""
     data = _transcribe_request(
         target._replace(model=timestamp_model(target.provider)),
         wav_path, language, prompt, "verbose_json",
@@ -162,12 +162,14 @@ def transcribe_segments(target, wav_path, language="", prompt="", timeout=300):
     for seg in segments:
         text = (seg.get("text") or "").strip()
         if text:
-            out.append((float(seg.get("start") or 0.0), text))
+            start = float(seg.get("start") or 0.0)
+            end = float(seg.get("end") or 0.0)
+            out.append((start, max(end, start), text))
     if not out:
         text = (data.get("text") or "").strip()
         if not text:
             raise ApiError(t("Transcript came back empty."))
-        out = [(0.0, text)]
+        out = [(0.0, 0.0, text)]
     return out
 
 

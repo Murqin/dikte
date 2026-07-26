@@ -197,8 +197,15 @@ TR = {
     "Stop": "Durdur",
     "Copy": "Panoya kopyala",
     "Save as .txt": "'.txt' olarak kaydet",
+    "Save as .srt": "'.srt' olarak kaydet",
+    "Subtitles, timed from the segments. Needs the timestamps option.":
+        "Altyazı; zamanlaması bölüm damgalarından gelir. Zaman damgası seçeneği "
+        "işaretliyken çalışır.",
+    "No timestamped lines to turn into subtitles.":
+        "Altyazıya çevrilecek zaman damgalı satır yok.",
     "Save transcript": "Transkripti kaydet",
     "Text files": "Metin dosyaları",
+    "Subtitle files": "Altyazı dosyaları",
     "Converting audio…": "Ses dönüştürülüyor…",
     "Splitting into {count} chunks…": "{count} parçaya bölünüyor…",
     "Transcribing chunk {index}/{count}…": "{index}/{count} parça yazıya çevriliyor…",
