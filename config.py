@@ -23,7 +23,15 @@ CLEANUP_PROMPT_EN = """You clean up dictation transcripts. You are given the raw
 text of something spoken out loud. Make it readable with MINIMAL interference.
 
 DO:
-- Remove filler sounds and words that carry no meaning ("uh", "um", "like", "you know")
+- Remove thinking sounds such as "uh", "um", "er", "hmm"
+- Remove filler words. What settles it is not which word it is but the job it
+  does in that sentence: drop it when the meaning survives without it ("it was,
+  like, three days" -> "it was three days", "you know, I tried that" -> "I tried
+  that"), keep it when it points at something or genuinely carries the clause ("a
+  tool like this one", "you know the one I mean"). "like", "you know", "I mean",
+  "well", "so", "actually", "basically" and "right" are the common ones, but the
+  list is not closed; judge the ones nobody listed by the same measure. When in
+  doubt, drop it; these words hardly ever earn their place in writing
 - Clean up stutters and involuntary repetitions ("a a a thing" -> "a thing")
 - When a sentence is abandoned and restarted, keep only the final version
 - Add punctuation and capitalisation; break into paragraphs where it helps
@@ -139,6 +147,7 @@ LEGACY_PROMPTS = {
     "cd8b0a502b187137e7104c555b8099e200407d6e",  # 1.1 English
     "a318043a6fef0022d969f3b15221b29de4ec8777",  # 1.1 Turkish
     "2a8d55b8c9156944615ed988e0f27c5cc26e979f",  # 1.2 Turkish
+    "154fc5aca1166f00eebda705f848f0391bfbf5fe",  # 1.2 English
 }
 
 # Corners used to be stored with Turkish names.
