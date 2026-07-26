@@ -37,7 +37,8 @@ runs on either one (`gpt-4o-transcribe` by default), cleanup always on
 OpenRouter (`google/gemini-3.5-flash-lite`), so a single OpenRouter key can
 cover both. They fall back to `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, and are
 stored in `~/.config/dikte/config.json`, mode 600. Cleanup can be switched off,
-in which case the raw transcript is pasted.
+in which case the raw transcript is pasted, and a thinking model's effort can be
+set next to it.
 
 ## Using it
 

@@ -173,7 +173,8 @@ def transcribe_segments(target, wav_path, language="", prompt="", timeout=300):
     return out
 
 
-def cleanup(text, api_key, model, system_prompt, base_url=OPENROUTER_URL, timeout=180):
+def cleanup(text, api_key, model, system_prompt, reasoning="",
+            base_url=OPENROUTER_URL, timeout=180):
     if not api_key:
         raise ApiError(t("{service} API key is empty. Add it in Settings.",
                          service="OpenRouter"))
@@ -185,6 +186,11 @@ def cleanup(text, api_key, model, system_prompt, base_url=OPENROUTER_URL, timeou
             {"role": "user", "content": f"<transcript>\n{text}\n</transcript>"},
         ],
     }
+    # An empty level means "whatever the model does on its own"; anything else is
+    # one of OpenRouter's efforts. The thinking itself is never shown, so ask for
+    # it to be left out of the reply.
+    if reasoning:
+        payload["reasoning"] = {"effort": reasoning, "exclude": True}
     try:
         data = _request(
             f"{base_url.rstrip('/')}/chat/completions",

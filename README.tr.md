@@ -38,7 +38,7 @@ temizleme her zaman OpenRouter'da (`google/gemini-3.5-flash-lite`), yani tek bir
 OpenRouter anahtarı ikisine de yeter. Boş bırakırsan `OPENAI_API_KEY` ve
 `OPENROUTER_API_KEY` kullanılır; anahtarlar `~/.config/dikte/config.json`
 içinde, izinler 600. Temizlemeyi tamamen kapatabilirsin, o zaman ham transkript
-yapıştırılır.
+yapıştırılır; modelin yanındaki kutudan düşünme seviyesini de seçebilirsin.
 
 ## Kullanım
 

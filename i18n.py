@@ -158,6 +158,21 @@ TR = {
     "Connection works. {count} audio models visible.":
         "Bağlantı tamam. {count} ses modeli görünüyor.",
     "Clean the transcript with a model": "Transkripti bir modelle temizle",
+    "Thinking": "Düşünme",
+    "Model's own default": "Modelin kendi varsayılanı",
+    "Off": "Kapalı",
+    "Minimal": "En az",
+    "Low": "Düşük",
+    "Medium": "Orta",
+    "High": "Yüksek",
+    "Very high": "Çok yüksek",
+    "Maximum": "En yüksek",
+    "How long a thinking model may reason before it answers. Cleanup is a light "
+    "job, so more thinking mostly costs time and tokens. Models that cannot "
+    "think ignore this.":
+        "Düşünebilen bir modelin yanıtlamadan önce ne kadar düşüneceği. Temizleme "
+        "hafif bir iş, fazla düşünmenin çoğunlukla getirisi süre ve token. "
+        "Düşünemeyen modeller bunu yok sayar.",
     "Fetch model list": "Model listesini çek",
     "Fetching model list…": "Model listesi çekiliyor…",
     "Could not fetch the list: {error}": "Liste alınamadı: {error}",

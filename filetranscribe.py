@@ -135,6 +135,7 @@ class FileTranscriber(QObject):
                 conf.openrouter_key(),
                 conf["cleanup_model"],
                 prompt,
+                reasoning=conf["cleanup_reasoning"],
                 base_url=conf["openrouter_base_url"],
             ))
         return ("\n" if timestamps else "\n\n").join(out)

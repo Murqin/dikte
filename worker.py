@@ -83,6 +83,7 @@ class Pipeline(QObject):
                         conf.openrouter_key(),
                         conf["cleanup_model"],
                         conf.cleanup_prompt(),
+                        reasoning=conf["cleanup_reasoning"],
                         base_url=conf["openrouter_base_url"],
                     )
                 except api.ApiError as exc:

@@ -43,6 +43,13 @@ CLEANUP_MODELS = [
     "google/gemini-2.5-flash-lite", "anthropic/claude-haiku-4.5",
     "openai/gpt-5-mini", "meta-llama/llama-3.3-70b-instruct",
 ]
+# How hard the cleanup model may think before it answers, in OpenRouter's own
+# effort levels. A model that ignores the field simply answers as it always did.
+REASONING_LEVELS = [
+    ("Model's own default", ""), ("Off", "none"), ("Minimal", "minimal"),
+    ("Low", "low"), ("Medium", "medium"), ("High", "high"),
+    ("Very high", "xhigh"), ("Maximum", "max"),
+]
 PASTE_SHORTCUTS = ["ctrl+v", "ctrl+shift+v", "shift+insert"]
 AUDIO_FILTER = ("*.mp3 *.wav *.m4a *.ogg *.opus *.flac *.aac *.wma "
                 "*.mp4 *.mkv *.webm *.mov *.avi")
@@ -231,6 +238,17 @@ class SettingsWindow(QDialog):
         self.refresh_models = QPushButton(t("Fetch model list"))
         self.refresh_models.clicked.connect(self._load_models)
         orr_form.addRow(t("Model"), self._row(self.cleanup_model, self.refresh_models))
+
+        self.cleanup_reasoning = QComboBox()
+        for label, value in REASONING_LEVELS:
+            self.cleanup_reasoning.addItem(t(label), value)
+        self.cleanup_reasoning.setToolTip(
+            t("How long a thinking model may reason before it answers. Cleanup is "
+              "a light job, so more thinking mostly costs time and tokens. Models "
+              "that cannot think ignore this.")
+        )
+        orr_form.addRow(t("Thinking"), self.cleanup_reasoning)
+
         self.models_label = QLabel(t("Runs on OpenRouter."))
         self.models_label.setWordWrap(True)
         orr_form.addRow(self.models_label)
@@ -456,6 +474,7 @@ class SettingsWindow(QDialog):
         self._provider_changed()  # selecting index 0 fires no signal
         self.cleanup_enabled.setChecked(conf["cleanup_enabled"])
         self.cleanup_model.setCurrentText(conf["cleanup_model"])
+        self._select_data(self.cleanup_reasoning, conf["cleanup_reasoning"])
         self.cleanup_prompt.setPlainText(conf["cleanup_prompt"] or cfg.default_cleanup_prompt())
         self.transcribe_prompt.setPlainText(conf["transcribe_prompt"])
 
@@ -498,6 +517,7 @@ class SettingsWindow(QDialog):
 
         conf["cleanup_enabled"] = self.cleanup_enabled.isChecked()
         conf["cleanup_model"] = self.cleanup_model.currentText().strip()
+        conf["cleanup_reasoning"] = self.cleanup_reasoning.currentData() or ""
 
         # Store an empty prompt when it matches the default, so switching the
         # interface language also switches the prompt language.
