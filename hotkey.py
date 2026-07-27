@@ -122,7 +122,9 @@ class EvdevHotkey(QObject):
         held = set()
         try:
             while not self._stop.is_set():
-                ready, _, _ = select.select(fds, [], [], 0.4)
+                # Short enough that stop() does not stall its caller waiting for
+                # the read to come back around.
+                ready, _, _ = select.select(fds, [], [], 0.15)
                 for fd in ready:
                     try:
                         data = os.read(fd, self.EVENT_SIZE * 64)

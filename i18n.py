@@ -61,6 +61,10 @@ TR = {
         "{service} hesapta kredi kalmadığını söylüyor (HTTP 402).",
     "{service} is rate limiting you (HTTP 429). Try again in a moment.":
         "{service} hız sınırı uyguluyor (HTTP 429). Birazdan tekrar dene.",
+    "The KDE shortcut is live now, so the built-in listener has been "
+    "turned off. It was doubling every key press.":
+        "KDE kısayolu artık çalışıyor, bu yüzden dahili dinleyici kapatıldı. "
+        "Her tuşa basışı ikiye katlıyordu.",
     "No speech detected": "Ses algılanmadı",
     "No speech detected ({level} dB)": "Ses algılanmadı ({level} dB)",
     "Discarded a stock phrase: “{text}”": "Kalıp cümle atıldı: “{text}”",

@@ -34,6 +34,11 @@ from worker import Pipeline  # noqa: E402
 SERVER_NAME = "dikte-" + str(os.getuid())
 IDLE, RECORDING, BUSY = "idle", "recording", "busy"
 
+# The KDE shortcut answers a key press by launching a whole Python process, so
+# its toggle lands well after the built-in listener has handled the same press.
+# Anything arriving inside this window is that echo, not a second press.
+ECHO_MS = 2000
+
 
 class Dikte:
     def __init__(self, app):
@@ -53,11 +58,12 @@ class Dikte:
         self.pipeline.stage.connect(self.overlay.show_busy)
         self.pipeline.finished.connect(self._on_finished)
         self.pipeline.failed.connect(self._on_error)
-        self.evdev.triggered.connect(self.toggle)
+        self.evdev.triggered.connect(self._on_evdev)
         self.evdev.failed.connect(self._on_error)
 
         self.elapsed = QElapsedTimer()
         self.last_toggle = QElapsedTimer()
+        self.last_evdev = QElapsedTimer()
         self.ticker = QTimer()
         self.ticker.setInterval(100)
         self.ticker.timeout.connect(self._tick)
@@ -73,7 +79,7 @@ class Dikte:
         # are only passed to addAction(), and garbage collection eats them.
         self.menu = QMenu()
         self.toggle_action = QAction(t("Start recording"), self.menu)
-        self.toggle_action.triggered.connect(self.toggle)
+        self.toggle_action.triggered.connect(self._toggle)
         self.menu.addAction(self.toggle_action)
 
         self.cancel_action = QAction(t("Cancel recording"), self.menu)
@@ -102,7 +108,7 @@ class Dikte:
 
     def _tray_clicked(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self.toggle()
+            self._toggle()
 
     def _set_icon(self, name):
         icon = QIcon.fromTheme(name)
@@ -129,8 +135,36 @@ class Dikte:
     # ---- actions ---------------------------------------------------------
 
     def toggle(self):
-        # With both the KDE shortcut and the built-in listener active the key
-        # arrives twice; swallow the immediate repeat.
+        """A toggle from outside this process: the KDE shortcut, or the CLI."""
+        # The built-in listener sees the key press the instant it happens, so a
+        # toggle arriving right behind one is the KDE shortcut catching up on
+        # that same press. Its lateness is also the proof we were waiting for
+        # that the shortcut is live, which leaves the listener with nothing to
+        # do but double every press.
+        if (self.evdev.running and self.last_evdev.isValid()
+                and self.last_evdev.elapsed() < ECHO_MS):
+            self._retire_listener()
+            return
+        self._toggle()
+
+    def _on_evdev(self):
+        self.last_evdev.restart()
+        self._toggle()
+
+    def _retire_listener(self):
+        self.evdev.stop()
+        self.conf["evdev_hotkey"] = False
+        self.conf.save()
+        self.tray.showMessage(
+            "Dikte",
+            t("The KDE shortcut is live now, so the built-in listener has been "
+              "turned off. It was doubling every key press."),
+            QSystemTrayIcon.MessageIcon.Information, 8000,
+        )
+
+    def _toggle(self):
+        # Two /dev/input nodes can carry the same keyboard, and a menu click can
+        # land on top of a key press; swallow the immediate repeat.
         if self.last_toggle.isValid() and self.last_toggle.elapsed() < 400:
             return
         self.last_toggle.restart()
