@@ -54,7 +54,10 @@ yapıştırılır; modelin yanındaki kutudan düşünme seviyesini de seçebili
 
 Ekranın köşesindeki gösterge kırmızı kayıt noktasını, canlı ses dalgasını ve
 süreyi, ardından hangi aşamada olduğunu gösterir. Odak almaz. Dikte çalışırken
-`Ctrl+Space`'e tekrar basmak bir şey yapmaz, sıraya da girmez.
+`Ctrl+Space`'e tekrar basmak bir şey yapmaz, sıraya da girmez. Dikte ile ajana
+verilen komut yalnızca mikrofon için birbirini bekler, o da tek aygıt olduğu
+için; başka hiçbir şeyde beklemezler. Her birinin kendi göstergesi var, ikisi
+birden ekrandayken ikincisi birincinin üstüne yerleşir.
 
 ## Neler yapıyor
 

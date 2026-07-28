@@ -11,6 +11,7 @@ HEIGHT = 56
 MIN_WIDTH = 210
 MAX_WIDTH = 460
 MARGIN = 28
+GAP = 10        # between two indicators sharing a corner
 
 BG = QColor(22, 24, 29, 238)
 BORDER = QColor(255, 255, 255, 28)
@@ -31,9 +32,15 @@ LIVE = ("recording", "asking", "meeting")
 
 
 class Overlay(QWidget):
-    def __init__(self, corner="bottom-left"):
+    """One indicator. Give it `below` and it stacks on top of that one instead
+    of covering it, which is what lets a dictation and a command to the agent be
+    under way at the same time and still both be visible."""
+
+    def __init__(self, corner="bottom-left", below=None):
         super().__init__(None)
         self.corner = corner
+        self.below = below
+        self._stacked = False
         self.state = "idle"
         self.message = ""
         self.levels = [0.0] * BARS
@@ -114,6 +121,12 @@ class Overlay(QWidget):
         self._hide_timer.stop()
         self._conceal()
 
+    @property
+    def showing(self):
+        """Mapped and actually painting something. The window stays mapped while
+        idle, so isVisible() alone would always say yes."""
+        return self.isVisible() and not self._concealed
+
     def push_level(self, level):
         self.levels = self.levels[1:] + [level]
 
@@ -168,12 +181,21 @@ class Overlay(QWidget):
         area = screen.availableGeometry()
         left = "left" in self.corner
         top = "top" in self.corner
+        self._stacked = self.below is not None and self.below.showing
+        # Stack away from the edge the corner sits on, so the pair grows into the
+        # screen rather than off it.
+        step = (self.below.height() + GAP) if self._stacked else 0
         x = area.left() + MARGIN if left else area.right() - self.width() - MARGIN
-        y = area.top() + MARGIN if top else area.bottom() - self.height() - MARGIN
+        y = (area.top() + MARGIN + step if top
+             else area.bottom() - self.height() - MARGIN - step)
         self.move(int(x), int(y))
 
     def _tick(self):
         self._phase += 0.12
+        # The one underneath can come and go while this one is up; drop back to
+        # the corner when it does rather than leaving a gap where it was.
+        if self.below is not None and self.below.showing != self._stacked:
+            self._reposition()
         if self.state in LIVE:
             # keep the ribbon moving even through a pause in speech
             self.levels = self.levels[1:] + [self.levels[-1] * 0.72]

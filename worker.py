@@ -26,6 +26,12 @@ from i18n import t
 
 CHUNK_SECONDS = audio.CHUNK_FRAMES / audio.RATE
 
+# A dictation and a command to the agent run side by side and can finish at the
+# same moment. Pasting is not one step but three that must not interleave: read
+# what is on the clipboard, put ours there, press the key. Two runs doing that
+# at once would paste one answer and restore the other's clipboard over it.
+_paste_lock = threading.Lock()
+
 
 class Pipeline(QObject):
     stage = pyqtSignal(str)          # human-readable progress line
@@ -129,15 +135,16 @@ class Pipeline(QObject):
                 )
                 warning = "\n".join(x for x in (warning, denied) if x)
 
-            previous = paste.read_clipboard() if conf["restore_clipboard"] else None
-            paste.copy(text)
+            with _paste_lock:
+                previous = paste.read_clipboard() if conf["restore_clipboard"] else None
+                paste.copy(text)
 
-            if (conf["assistant_paste"] if ask else conf["auto_paste"]):
-                self.stage.emit(t("Pasting…"))
-                paste.press(conf["paste_shortcut"])
-                if previous is not None:
-                    time.sleep(0.35)
-                    paste.copy_bytes(previous)
+                if (conf["assistant_paste"] if ask else conf["auto_paste"]):
+                    self.stage.emit(t("Pasting…"))
+                    paste.press(conf["paste_shortcut"])
+                    if previous is not None:
+                        time.sleep(0.35)
+                        paste.copy_bytes(previous)
 
             cfg.append_history({
                 "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
