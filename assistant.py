@@ -178,7 +178,7 @@ def ask(prompt, conf, on_stage=None, should_stop=None):
     if not shutil.which(binary):
         raise AssistantError(t(
             "{binary} not found. Install it, or pick another provider under "
-            "Settings → Claude.", binary=binary,
+            "Settings → Agent.", binary=binary,
         ))
 
     run = _ask_claude if name == "claude" else _ask_codex

@@ -46,7 +46,7 @@ yapıştırılır; modelin yanındaki kutudan düşünme seviyesini de seçebili
 | --- | --- |
 | Kaydı başlat / bitir | `Ctrl+Space`, ya da tepsi simgesine tıkla |
 | Kaydı iptal et | Tepsi menüsü → *Kaydı iptal et*, ya da `dikte cancel` |
-| Claude'a sesle komut ver | Tepsi menüsü → *Claude'a sor*, ya da `dikte ask` |
+| Ajana sesle komut ver | Tepsi menüsü → *Claude'a sor*, ya da `dikte ask` |
 | Toplantıyı başlat / bitir | Tepsi menüsü → *Toplantı kaydet*, ya da `dikte meeting` |
 | Ayarlar | Tepsi menüsü → *Ayarlar*, ya da `dikte settings` |
 | Güncelleme sonrası yeniden yükle | Tepsi menüsü → *Yeniden başlat*, ya da `dikte restart` |
@@ -88,7 +88,7 @@ süreyi, ardından hangi aşamada olduğunu gösterir. Odak almaz. Dikte çalı�
   perşembe üçe takvime koy" cümlesini Claude olmayan bir pencerede söyleyebilir
   olmanı sağlayan da budur. Codex (`codex exec`) da aynı şekilde çalışır;
   OpenRouter ise ikisi de kurulu olmayan bir makinede düz soru cevap için
-  duruyor. Sağlayıcı, model, izinler ve çalışma dizini Ayarlar → Claude
+  duruyor. Sağlayıcı, model, izinler ve çalışma dizini Ayarlar → Ajan
   sekmesinde; arka arkaya verilen komutlar tek bir konuşmada kalır.
 - **Toplantılar** mikrofonla hoparlör çıkışından aynı anda kaydedilir; kimin ne
   dediği tahmin edilmez, sesin hangi kanaldan geldiğiyle belli olur. İki taraf

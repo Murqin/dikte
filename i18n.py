@@ -331,8 +331,8 @@ TR = {
     "Using {name}…": "{name} kullanıyor…",
     "Thinking…": "Düşünüyor…",
     "{binary} not found. Install it, or pick another provider under "
-    "Settings → Claude.":
-        "{binary} bulunamadı. Kur ya da Ayarlar → Claude sekmesinden başka bir "
+    "Settings → Agent.":
+        "{binary} bulunamadı. Kur ya da Ayarlar → Ajan sekmesinden başka bir "
         "sağlayıcı seç.",
     "Could not run {binary}: {error}": "{binary} çalıştırılamadı: {error}",
     "{service} exited with code {code}.": "{service} {code} koduyla çıktı.",
@@ -344,8 +344,8 @@ TR = {
     "It was not allowed to use: {tools}": "Şunları kullanmasına izin yoktu: {tools}",
     "The model returned an empty reply.": "Model boş cevap döndürdü.",
 
-    # --- settings: Claude ---------------------------------------------------
-    "Claude": "Claude",
+    # --- settings: the agent ------------------------------------------------
+    "Agent": "Ajan",
     "This shortcut records the same way dictation does, but the transcript is "
     "not what gets pasted. It goes to an agent as a command, and what comes "
     "back is pasted instead: the answer to a question, or a sentence saying "
@@ -386,7 +386,7 @@ TR = {
     "The conversation": "Konuşma",
     "The answer": "Cevap",
     "Found: {path}": "Bulundu: {path}",
-    "No KDE shortcut installed. The tray menu asks Claude too.":
+    "No KDE shortcut installed. The tray menu asks it too.":
         "Kurulu KDE kısayolu yok. Tepsi menüsünden de sorulabilir.",
     "A name like “sonnet” always means the newest model of that line. Opus "
     "thinks harder and answers slower, which is felt here more than anywhere "

@@ -163,7 +163,15 @@ class Dikte:
         self._set_icon("audio-input-microphone")
 
     def _tray_clicked(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+        if reason != QSystemTrayIcon.ActivationReason.Trigger:
+            return
+        # The icon ends whatever is being recorded rather than only a dictation.
+        # The two shortcuts are each tied to their own mode, on purpose, but the
+        # icon is one button: having it refuse to stop a recording it can see is
+        # just a button that does nothing.
+        if self.state == RECORDING and self.ask_mode:
+            self._toggle_ask()
+        else:
             self._toggle()
 
     def _set_icon(self, name):

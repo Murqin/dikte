@@ -90,6 +90,15 @@ REASONING_LEVELS = [
     ("Very high", "xhigh"), ("Maximum", "max"),
 ]
 PASTE_SHORTCUTS = ["ctrl+v", "ctrl+shift+v", "shift+insert"]
+# Offered for all three global shortcuts, which keeps them one kind of field
+# rather than three. The boxes stay editable: this is a shortlist of
+# combinations that are usually free, not the set of ones that work.
+SHORTCUTS = [
+    "Ctrl+Space", "Ctrl+Alt+Space", "Ctrl+Shift+Space", "Meta+Space",
+    "Ctrl+Alt+A", "Ctrl+Alt+D", "Ctrl+Alt+M", "Ctrl+Alt+Q",
+    "Meta+A", "Meta+D", "Meta+M",
+    "Ctrl+Alt+F1", "Ctrl+Alt+F2", "Ctrl+Alt+F3",
+]
 AUDIO_FILTER = ("*.mp3 *.wav *.m4a *.ogg *.opus *.flac *.aac *.wma "
                 "*.mp4 *.mkv *.webm *.mov *.avi")
 
@@ -122,7 +131,7 @@ class SettingsWindow(QDialog):
         tabs.addTab(self._general_tab(), t("General"))
         tabs.addTab(self._api_tab(), t("API and models"))
         tabs.addTab(self._prompt_tab(), t("Cleanup rules"))
-        tabs.addTab(self._assistant_tab(), t("Claude"))
+        tabs.addTab(self._assistant_tab(), t("Agent"))
         tabs.addTab(self._meeting_tab(), t("Meeting"))
         tabs.addTab(self._minutes_tab(), t("Minutes"))
         tabs.addTab(self._file_tab(), t("Audio file"))
@@ -353,8 +362,7 @@ class SettingsWindow(QDialog):
 
         how = QGroupBox(t("How it runs"))
         how_form = QFormLayout(how)
-        self.assistant_shortcut = QLineEdit()
-        self.assistant_shortcut.setPlaceholderText(t("none"))
+        self.assistant_shortcut = self._shortcut_box(t("none"))
         install = QPushButton(t("Install as a KDE shortcut"))
         install.clicked.connect(self._install_ask_shortcut)
         remove = QPushButton(t("Remove"))
@@ -604,8 +612,7 @@ class SettingsWindow(QDialog):
         ))
         recording_form.addRow("", self.meeting_keep_audio)
 
-        self.meeting_shortcut = QLineEdit()
-        self.meeting_shortcut.setPlaceholderText(t("none"))
+        self.meeting_shortcut = self._shortcut_box(t("none"))
         install = QPushButton(t("Install as a KDE shortcut"))
         install.clicked.connect(self._install_meeting_shortcut)
         remove = QPushButton(t("Remove"))
@@ -752,8 +759,7 @@ class SettingsWindow(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         form = QFormLayout()
-        self.shortcut = QLineEdit()
-        self.shortcut.setPlaceholderText("Ctrl+Space")
+        self.shortcut = self._shortcut_box("Ctrl+Space")
         form.addRow(t("Shortcut"), self.shortcut)
         layout.addLayout(form)
 
@@ -838,6 +844,17 @@ class SettingsWindow(QDialog):
         return page
 
     @staticmethod
+    def _shortcut_box(placeholder=""):
+        """The field a global shortcut is typed or picked in."""
+        box = QComboBox()
+        box.setEditable(True)
+        box.addItems(SHORTCUTS)
+        box.setCurrentText("")
+        if placeholder:
+            box.lineEdit().setPlaceholderText(placeholder)
+        return box
+
+    @staticmethod
     def _row(*widgets):
         """Widgets side by side in one form row; the first one takes the space."""
         layout = QHBoxLayout()
@@ -878,7 +895,7 @@ class SettingsWindow(QDialog):
         self.cleanup_prompt.setPlainText(conf["cleanup_prompt"] or cfg.default_cleanup_prompt())
         self.transcribe_prompt.setPlainText(conf["transcribe_prompt"])
 
-        self.assistant_shortcut.setText(conf["assistant_shortcut"])
+        self.assistant_shortcut.setCurrentText(conf["assistant_shortcut"])
         self._select_data(self.assistant_provider, conf["assistant_provider"])
         self.assistant_model.setCurrentText(conf["assistant_model"])
         self._select_data(self.assistant_permission, conf["assistant_permission_mode"])
@@ -906,7 +923,7 @@ class SettingsWindow(QDialog):
         self.meeting_cleanup.setChecked(conf["meeting_cleanup"])
         self.meeting_max_minutes.setValue(max(5, int(conf["meeting_max_seconds"]) // 60))
         self.meeting_keep_audio.setChecked(conf["meeting_keep_audio"])
-        self.meeting_shortcut.setText(conf["meeting_shortcut"])
+        self.meeting_shortcut.setCurrentText(conf["meeting_shortcut"])
         self.meeting_prompt.setPlainText(
             conf["meeting_prompt"] or cfg.default_meeting_prompt()
         )
@@ -915,7 +932,7 @@ class SettingsWindow(QDialog):
         self.file_cleanup.setChecked(conf["file_cleanup"])
         self.file_path = ""
 
-        self.shortcut.setText(conf["shortcut"])
+        self.shortcut.setCurrentText(conf["shortcut"])
         self.evdev_enabled.setChecked(conf["evdev_hotkey"])
 
         self.history_limit.setValue(max(0, int(conf["history_limit"])))
@@ -962,7 +979,7 @@ class SettingsWindow(QDialog):
         conf["cleanup_prompt"] = "" if prompt == cfg.default_cleanup_prompt() else prompt
         conf["transcribe_prompt"] = self.transcribe_prompt.toPlainText().strip()
 
-        conf["assistant_shortcut"] = self.assistant_shortcut.text().strip()
+        conf["assistant_shortcut"] = self.assistant_shortcut.currentText().strip()
         conf["assistant_provider"] = self.assistant_provider.currentData() or "claude"
         conf["assistant_model"] = (self.assistant_model.currentText().strip()
                                    or cfg.DEFAULTS["assistant_model"])
@@ -1001,7 +1018,7 @@ class SettingsWindow(QDialog):
         conf["meeting_cleanup"] = self.meeting_cleanup.isChecked()
         conf["meeting_max_seconds"] = self.meeting_max_minutes.value() * 60
         conf["meeting_keep_audio"] = self.meeting_keep_audio.isChecked()
-        conf["meeting_shortcut"] = self.meeting_shortcut.text().strip()
+        conf["meeting_shortcut"] = self.meeting_shortcut.currentText().strip()
         meeting_prompt = self.meeting_prompt.toPlainText().strip()
         conf["meeting_prompt"] = ("" if meeting_prompt == cfg.default_meeting_prompt()
                                   else meeting_prompt)
@@ -1009,7 +1026,7 @@ class SettingsWindow(QDialog):
         conf["file_timestamps"] = self.file_timestamps.isChecked()
         conf["file_cleanup"] = self.file_cleanup.isChecked()
 
-        conf["shortcut"] = self.shortcut.text().strip() or "Ctrl+Space"
+        conf["shortcut"] = self.shortcut.currentText().strip() or "Ctrl+Space"
         conf["evdev_hotkey"] = self.evdev_enabled.isChecked()
         conf["history_limit"] = self.history_limit.value()
         conf.save()
@@ -1217,7 +1234,7 @@ class SettingsWindow(QDialog):
     # ---- shortcut --------------------------------------------------------
 
     def _install_shortcut(self):
-        combo = self.shortcut.text().strip() or "Ctrl+Space"
+        combo = self.shortcut.currentText().strip() or "Ctrl+Space"
         clashes = hotkey.conflicting_shortcuts(combo)
         if clashes:
             answer = QMessageBox.question(
@@ -1246,7 +1263,7 @@ class SettingsWindow(QDialog):
         )
 
     def _install_meeting_shortcut(self):
-        combo = self.meeting_shortcut.text().strip()
+        combo = self.meeting_shortcut.currentText().strip()
         if not combo:
             QMessageBox.information(self, t("Shortcut"),
                                     t("Type a key combination first."))
@@ -1284,7 +1301,7 @@ class SettingsWindow(QDialog):
     # ---- Claude ----------------------------------------------------------
 
     def _install_ask_shortcut(self):
-        combo = self.assistant_shortcut.text().strip()
+        combo = self.assistant_shortcut.currentText().strip()
         if not combo:
             QMessageBox.information(self, t("Shortcut"),
                                     t("Type a key combination first."))
@@ -1316,7 +1333,7 @@ class SettingsWindow(QDialog):
         current = hotkey.kde_shortcut_status(hotkey.ASK_DESKTOP_ID)
         self.assistant_shortcut_status.setText(
             t("Registered in KDE: {shortcut}", shortcut=current) if current
-            else t("No KDE shortcut installed. The tray menu asks Claude too.")
+            else t("No KDE shortcut installed. The tray menu asks it too.")
         )
 
     def _assistant_provider_changed(self):

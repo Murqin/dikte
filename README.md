@@ -46,7 +46,7 @@ set next to it.
 | --- | --- |
 | Start / stop recording | `Ctrl+Space`, or click the tray icon |
 | Cancel a recording | Tray menu → *Cancel recording*, or `dikte cancel` |
-| Speak a command to Claude | Tray menu → *Ask Claude*, or `dikte ask` |
+| Speak a command to an agent | Tray menu → *Ask Claude*, or `dikte ask` |
 | Start / end a meeting | Tray menu → *Record a meeting*, or `dikte meeting` |
 | Settings | Tray menu → *Settings*, or `dikte settings` |
 | Reload after an update | Tray menu → *Restart*, or `dikte restart` |
@@ -90,7 +90,7 @@ elapsed time, then the stage it is on. It never takes focus. Pressing
   a thing you can say to a window that is not Claude. Codex (`codex exec`) runs
   the same way, and OpenRouter is there as a plain question-and-answer fallback
   for a machine with neither CLI on it. Provider, model, permissions and working
-  directory are under Settings → Claude, and commands close together stay in one
+  directory are under Settings → Agent, and commands close together stay in one
   conversation.
 - **Meetings** are recorded from the microphone and the speaker output at the
   same time, which settles who said what by the channel a voice arrived on
