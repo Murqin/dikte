@@ -5,6 +5,8 @@ Usage:
   dikte.py               run in the background (tray icon)
   dikte.py toggle        start / stop recording
   dikte.py cancel        discard the current recording
+  dikte.py ask           start / stop recording a command for Claude Code
+  dikte.py ask-reset     forget the conversation Claude has been following
   dikte.py meeting       start / end a meeting recording
   dikte.py meeting-cancel  discard the meeting being recorded
   dikte.py settings      open the settings window
@@ -25,6 +27,7 @@ from PyQt6.QtGui import QAction, QIcon  # noqa: E402
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon  # noqa: E402
 
+import assistant  # noqa: E402
 import audio  # noqa: E402
 import config as cfg  # noqa: E402
 import hotkey  # noqa: E402
@@ -57,6 +60,10 @@ class Dikte:
         self.app = app
         self.conf = cfg.Config()
         self.state = IDLE
+        # Dictation and a command for Claude share the recorder and the state
+        # machine; which of the two is being recorded is decided when the
+        # recording starts, and holds until it is finished with.
+        self.ask_mode = False
         self.meeting_state = M_IDLE
         self.meeting_base = ""
         self.meeting_message = ""
@@ -76,6 +83,7 @@ class Dikte:
         self.pipeline.stage.connect(self.overlay.show_busy)
         self.pipeline.finished.connect(self._on_finished)
         self.pipeline.failed.connect(self._on_error)
+        self.pipeline.cancelled.connect(self._on_cancelled)
         self.meeting_recorder.levels.connect(self._on_meeting_levels)
         self.meeting_recorder.stopped.connect(self._on_meeting_recorded)
         self.meeting_recorder.died.connect(self._on_meeting_died)
@@ -110,6 +118,14 @@ class Dikte:
         self.toggle_action = QAction(t("Start recording"), self.menu)
         self.toggle_action.triggered.connect(self._toggle)
         self.menu.addAction(self.toggle_action)
+
+        self.ask_action = QAction(t("Ask Claude"), self.menu)
+        self.ask_action.triggered.connect(self._toggle_ask)
+        self.menu.addAction(self.ask_action)
+
+        self.reset_action = QAction(t("Start a new conversation"), self.menu)
+        self.reset_action.triggered.connect(self.reset_conversation)
+        self.menu.addAction(self.reset_action)
 
         self.cancel_action = QAction(t("Cancel recording"), self.menu)
         self.cancel_action.triggered.connect(self.cancel)
@@ -159,6 +175,8 @@ class Dikte:
 
     def _set_state(self, state):
         self.state = state
+        if state == IDLE:
+            self.ask_mode = False
         self._refresh_tray()
 
     def _set_meeting_state(self, state):
@@ -174,9 +192,33 @@ class Dikte:
             BUSY: ("Working…", "view-refresh", "Dikte: working"),
         }
         label, icon, tip = labels[self.state]
+        if self.ask_mode:
+            tip = "Dikte: talking to Claude"
+            if self.state == RECORDING:
+                label, tip = "Start recording", "Dikte: recording for Claude"
         self.toggle_action.setText(t(label))
-        self.toggle_action.setEnabled(self.state != BUSY)
-        self.cancel_action.setEnabled(self.state == RECORDING)
+        # Each of the two owns its own entry, so the one that is not recording
+        # goes grey rather than offering to end a recording it did not start.
+        self.toggle_action.setEnabled(
+            self.state == IDLE or (self.state == RECORDING and not self.ask_mode)
+        )
+        self.ask_action.setText(
+            t("Stop and ask Claude") if self.state == RECORDING and self.ask_mode
+            else t("Ask Claude")
+        )
+        self.ask_action.setEnabled(
+            self.state == IDLE or (self.state == RECORDING and self.ask_mode)
+        )
+        self.reset_action.setEnabled(self.state != BUSY)
+        # A Claude command is the one job long enough to be worth calling off
+        # once it is already running.
+        self.cancel_action.setText(
+            t("Stop Claude") if self.state == BUSY and self.ask_mode
+            else t("Cancel recording")
+        )
+        self.cancel_action.setEnabled(
+            self.state == RECORDING or (self.state == BUSY and self.ask_mode)
+        )
 
         meeting_labels = {
             M_IDLE: "Record a meeting",
@@ -207,6 +249,9 @@ class Dikte:
         """A toggle from outside this process: the KDE shortcut, or the CLI."""
         self._external("toggle", self._toggle)
 
+    def toggle_ask(self):
+        self._external("ask", self._toggle_ask)
+
     def toggle_meeting(self):
         self._external("meeting", self._toggle_meeting)
 
@@ -227,7 +272,8 @@ class Dikte:
         if timer is None:
             timer = self.last_evdev[name] = QElapsedTimer()
         timer.restart()
-        (self._toggle_meeting if name == "meeting" else self._toggle)()
+        handlers = {"meeting": self._toggle_meeting, "ask": self._toggle_ask}
+        handlers.get(name, self._toggle)()
 
     def _retire_listener(self):
         self.evdev.stop()
@@ -243,24 +289,40 @@ class Dikte:
     def _toggle(self):
         # Two /dev/input nodes can carry the same keyboard, and a menu click can
         # land on top of a key press; swallow the immediate repeat.
-        if self.last_toggle.isValid() and self.last_toggle.elapsed() < 400:
+        if self._repeated():
             return
-        self.last_toggle.restart()
-
         if self.state == IDLE:
             self.start()
-        elif self.state == RECORDING:
+        elif self.state == RECORDING and not self.ask_mode:
             self.stop()
-        # requests during BUSY are ignored
+        # requests during BUSY, or for the other mode's recording, are ignored
 
-    def start(self):
+    def _toggle_ask(self):
+        if self._repeated():
+            return
+        if self.state == IDLE:
+            self.start(ask=True)
+        elif self.state == RECORDING and self.ask_mode:
+            self.stop()
+
+    def _repeated(self):
+        if self.last_toggle.isValid() and self.last_toggle.elapsed() < 400:
+            return True
+        self.last_toggle.restart()
+        return False
+
+    def start(self, ask=False):
         if self.state != IDLE:
             return
-        self.overlay.show_recording()
+        self.ask_mode = ask
+        self.overlay.show_recording(asking=ask)
         self.elapsed.restart()
         self.ticker.start()
         self._set_state(RECORDING)
         self.recorder.start(self.conf["mic_target"], self.conf["max_seconds"])
+
+    def start_ask(self):
+        self.start(ask=True)
 
     def stop(self):
         if self.state != RECORDING:
@@ -271,12 +333,25 @@ class Dikte:
         self.recorder.stop()
 
     def cancel(self):
+        if self.state == BUSY:
+            # Only a Claude command can be called off once it is under way, and
+            # it says so itself when it lets go.
+            if self.ask_mode:
+                self.overlay.show_busy(t("Stopping…"))
+                self.pipeline.cancel()
+            return
         if self.state != RECORDING:
             return
         self.ticker.stop()
         self.recorder.cancel()
         self.overlay.dismiss()
         self._set_state(IDLE)
+
+    def reset_conversation(self):
+        """Drop the thread Claude has been following, so the next command starts
+        a conversation of its own."""
+        assistant.clear_session()
+        self.overlay.show_done(t("Claude starts fresh next time."), 2500)
 
     def _tick(self):
         seconds = self.elapsed.elapsed() / 1000.0
@@ -414,24 +489,41 @@ class Dikte:
         self.stop_meeting()
 
     def _on_recorded(self, wav_path, duration, rms_values):
-        self.pipeline.run(wav_path, duration, rms_values)
+        self.pipeline.run(wav_path, duration, rms_values, ask=self.ask_mode)
 
     def _on_finished(self, _raw, text, warning):
+        asked = self.ask_mode
         if warning:
-            # The text was still pasted, but cleanup did not run. Say so loudly:
-            # a rejected key otherwise looks exactly like working dictation.
+            # The text was still pasted, but something on the way did not run.
+            # Say so loudly: a rejected key, or a tool Claude was not allowed to
+            # touch, otherwise looks exactly like a job that worked.
+            first_line = warning.splitlines()[0]
             self.overlay.show_warning(
-                t("Pasted raw, cleanup failed: {error}", error=warning.splitlines()[0])
+                t("Claude answered, but: {error}", error=first_line) if asked
+                else t("Pasted raw, cleanup failed: {error}", error=first_line)
             )
             self.tray.showMessage(
-                t("Dikte: cleanup failed"), warning,
+                t("Dikte: Claude could not do all of it") if asked
+                else t("Dikte: cleanup failed"),
+                f"{warning}\n\n{text}" if asked else warning,
                 QSystemTrayIcon.MessageIcon.Warning, 10000,
             )
         else:
             preview = text.replace("\n", " ")
             preview = preview[:48] + ("…" if len(preview) > 48 else "")
-            action = t("Pasted") if self.conf["auto_paste"] else t("Copied")
-            self.overlay.show_done(t("{action}: {preview}", action=action, preview=preview))
+            if asked:
+                # Longer than a dictation's flash: this one is an answer, and
+                # it is worth being able to read the start of it in the corner.
+                self.overlay.show_done(t("Claude: {preview}", preview=preview), 6000)
+            else:
+                action = t("Pasted") if self.conf["auto_paste"] else t("Copied")
+                self.overlay.show_done(
+                    t("{action}: {preview}", action=action, preview=preview)
+                )
+        self._set_state(IDLE)
+
+    def _on_cancelled(self):
+        self.overlay.show_done(t("Stopped."), 2000)
         self._set_state(IDLE)
 
     def _on_error(self, message):
@@ -448,7 +540,8 @@ class Dikte:
     def open_settings(self):
         if self.settings_window is None:
             self.settings_window = SettingsWindow(
-                self.conf, launch_command(), meeting_command(), self.meetings
+                self.conf, launch_command(), meeting_command(), self.meetings,
+                ask_command(),
             )
             self.settings_window.applied.connect(self._apply_settings)
             self.settings_window.finished.connect(self._settings_closed)
@@ -466,6 +559,7 @@ class Dikte:
         self._refresh_tray()
         if self.conf["evdev_hotkey"]:
             self.evdev.start({"toggle": self.conf["shortcut"],
+                              "ask": self.conf["assistant_shortcut"],
                               "meeting": self.conf["meeting_shortcut"]})
         else:
             self.evdev.stop()
@@ -509,6 +603,10 @@ def meeting_command():
     return f"{sys.executable} {os.path.realpath(__file__)} meeting"
 
 
+def ask_command():
+    return f"{sys.executable} {os.path.realpath(__file__)} ask"
+
+
 def send_command(command, timeout=800):
     """Hand a command to the running instance; False when there is none."""
     socket = QLocalSocket()
@@ -527,8 +625,8 @@ def main():
     command = args[0] if args else ""
 
     if command and command not in ("toggle", "cancel", "settings", "restart",
-                                   "quit", "start", "stop", "meeting",
-                                   "meeting-cancel"):
+                                   "quit", "start", "stop", "ask", "ask-reset",
+                                   "meeting", "meeting-cancel"):
         print(__doc__)
         return 2
 
@@ -541,7 +639,8 @@ def main():
     if send_command(command or "settings"):
         return 0
 
-    if command in ("cancel", "quit", "stop", "restart", "meeting-cancel"):
+    if command in ("cancel", "quit", "stop", "restart", "meeting-cancel",
+                   "ask-reset"):
         return 0
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -569,6 +668,8 @@ def main():
                 "start": dikte.start,
                 "stop": dikte.stop,
                 "cancel": dikte.cancel,
+                "ask": dikte.toggle_ask,
+                "ask-reset": dikte.reset_conversation,
                 "meeting": dikte.toggle_meeting,
                 "meeting-cancel": dikte.cancel_meeting,
                 "settings": dikte.open_settings,
@@ -590,6 +691,8 @@ def main():
         dikte.open_settings()
     elif command == "toggle":
         QTimer.singleShot(0, dikte.toggle)
+    elif command == "ask":
+        QTimer.singleShot(0, dikte.toggle_ask)
     elif command == "meeting":
         QTimer.singleShot(0, dikte.toggle_meeting)
 

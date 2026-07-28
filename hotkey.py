@@ -15,6 +15,7 @@ from i18n import t
 
 DESKTOP_ID = "dikte-toggle.desktop"
 MEETING_DESKTOP_ID = "dikte-meeting.desktop"
+ASK_DESKTOP_ID = "dikte-ask.desktop"
 APPLICATIONS_DIR = pathlib.Path.home() / ".local/share/applications"
 DESKTOP_FILE = APPLICATIONS_DIR / DESKTOP_ID
 SHORTCUTS_FILE = pathlib.Path.home() / ".config/kglobalshortcutsrc"

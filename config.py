@@ -220,6 +220,50 @@ PARTICIPANTS_RULE_TR = ("\n\nTOPLANTIDAKİ KİŞİLER\n{participants}\n"
                         "yazımla kullan; yine de bir satırı ancak transkript açık "
                         "ediyorsa bunlardan birine bağla.")
 
+ASSISTANT_PROMPT_EN = """This request reached you from Dikte, a dictation tool.
+What you are reading was spoken out loud and turned into text by a speech model,
+so a word here and there may have come through wrong. Read it for what was
+meant, not for what it says letter by letter.
+
+Your answer is copied to the clipboard and pasted into whatever window the user
+was in. It is read where it lands: there is nothing to click, no thread to
+follow, and no way to answer a question you ask back.
+
+- Reply in the language you were spoken to in
+- Keep it short. A sentence or two when that covers it. No preamble, no "here
+  is what I found", no closing offer of further help
+- Plain prose. No headings, no bullet lists, no bold, and no code fence unless
+  what was asked for is code
+- When you did something rather than answered something, say what you did in
+  one sentence, carrying the detail that confirms it: the day and time an event
+  was saved for, the name of a file that was written
+- When the request cannot be carried out, say so in one sentence and stop. Do
+  not guess at what was meant, and do not do something adjacent instead
+- If the request is ambiguous in a way that changes the answer, give the answer
+  under the likelier reading and name the assumption in a clause"""
+
+ASSISTANT_PROMPT_TR = """Bu istek sana Dikte adlı bir dikte uygulamasından geldi.
+Okuduğun metin sesli olarak söylendi ve bir konuşma modeli tarafından yazıya
+çevrildi; yer yer bir kelime yanlış geçmiş olabilir. Harfi harfine ne yazdığına
+değil, ne denmek istendiğine bak.
+
+Cevabın panoya kopyalanıp kullanıcının o an açık olan penceresine yapıştırılıyor.
+Cevap düştüğü yerde okunuyor: tıklanacak bir şey, takip edilecek bir konuşma ya
+da senin soracağın soruya verilecek bir yanıt yok.
+
+- Sana hangi dilde konuşulduysa o dilde cevap ver
+- Kısa tut. Yetiyorsa bir iki cümle. Giriş cümlesi kurma, "işte buldukların"
+  deme, sonunda başka yardım teklif etme
+- Düz metin yaz. Başlık, madde işareti, kalın yazı kullanma; istenen şey kodun
+  kendisi değilse kod bloğu da açma
+- Bir şeyi cevaplamak yerine yaptıysan, ne yaptığını tek cümleyle söyle ve onu
+  doğrulayan ayrıntıyı da yaz: kaydın hangi güne ve saate düştüğü, yazdığın
+  dosyanın adı
+- İstenen şey yapılamıyorsa tek cümleyle söyle ve dur. Ne denmek istendiğini
+  tahmin etmeye çalışma, yerine yakın bir şey yapma
+- İstek cevabı değiştirecek biçimde belirsizse, daha olası okumaya göre cevapla
+  ve varsayımını bir yan cümlede söyle"""
+
 DEFAULTS = {
     "ui_language": "auto",          # auto | tr | en
     "openai_api_key": "",
@@ -268,6 +312,17 @@ DEFAULTS = {
     "meeting_participants": "",
     "meeting_keep_audio": False,    # a failed run keeps its audio regardless
     "meeting_shortcut": "",         # empty -> tray only
+
+    # --- asking Claude Code -----------------------------------------------
+    "assistant_shortcut": "",       # empty -> tray only
+    "assistant_model": "sonnet",    # an alias, or a full model id
+    "assistant_permission_mode": "auto",
+    "assistant_dir": "",            # empty -> the home directory
+    "assistant_prompt": "",         # empty -> language-specific default
+    "assistant_cleanup": False,     # the model reads through filler words fine
+    "assistant_paste": True,        # paste the answer, not just copy it
+    "assistant_session_minutes": 30,  # 0 -> every command starts fresh
+    "assistant_timeout": 240,
 }
 
 # Saving the settings window used to write the whole default prompt into the
@@ -362,6 +417,9 @@ class Config:
             prompt += SPEAKER_RULE_TR if turkish else SPEAKER_RULE_EN
         return prompt
 
+    def assistant_prompt(self):
+        return self["assistant_prompt"].strip() or default_assistant_prompt()
+
     # ---- meetings --------------------------------------------------------
 
     def participants(self):
@@ -409,6 +467,10 @@ def default_cleanup_prompt():
 
 def default_meeting_prompt():
     return MEETING_PROMPT_TR if i18n.language() == "tr" else MEETING_PROMPT_EN
+
+
+def default_assistant_prompt():
+    return ASSISTANT_PROMPT_TR if i18n.language() == "tr" else ASSISTANT_PROMPT_EN
 
 
 def append_history(entry):

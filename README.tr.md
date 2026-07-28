@@ -46,6 +46,7 @@ yapıştırılır; modelin yanındaki kutudan düşünme seviyesini de seçebili
 | --- | --- |
 | Kaydı başlat / bitir | `Ctrl+Space`, ya da tepsi simgesine tıkla |
 | Kaydı iptal et | Tepsi menüsü → *Kaydı iptal et*, ya da `dikte cancel` |
+| Claude'a sesle komut ver | Tepsi menüsü → *Claude'a sor*, ya da `dikte ask` |
 | Toplantıyı başlat / bitir | Tepsi menüsü → *Toplantı kaydet*, ya da `dikte meeting` |
 | Ayarlar | Tepsi menüsü → *Ayarlar*, ya da `dikte settings` |
 | Güncelleme sonrası yeniden yükle | Tepsi menüsü → *Yeniden başlat*, ya da `dikte restart` |
@@ -80,6 +81,13 @@ süreyi, ardından hangi aşamada olduğunu gösterir. Odak almaz. Dikte çalı�
 - **Başarısız temizleme sessizce geçmez.** Dikte kaybolmasın diye ham transkript
   yine yapıştırılır ama gösterge kehribar rengine döner ve nedenini söyler,
   normal bir çalışma gibi görünmez.
+- **Dikte bunun yerine bir komut da olabilir.** Kendi kısayolu transkripti
+  yapıştırmak yerine Claude Code'a (`claude -p`) gönderir ve oradan döneni
+  yapıştırır: cevabı ya da ne yapıldığını söyleyen bir cümle. Kendi açacağın
+  oturumun aynısıdır, yani skill'lerin ve bağlı servislerin oradadır; "bunu
+  perşembe üçe takvime koy" cümlesini Claude olmayan bir pencerede söyleyebilir
+  olmanı sağlayan da budur. Model, izinler ve çalışma dizini Ayarlar → Claude
+  sekmesinde; arka arkaya verilen komutlar tek bir konuşmada kalır.
 - **Toplantılar** mikrofonla hoparlör çıkışından aynı anda kaydedilir; kimin ne
   dediği tahmin edilmez, sesin hangi kanaldan geldiğiyle belli olur. İki taraf
   ayrı ayrı yazıya çevrilip tek bir zaman damgalı transkriptte birleştirilir,
@@ -110,6 +118,7 @@ grubunda olmasını gerektirir: `sudo usermod -aG input $USER`.
 dikte.py          giriş noktası, tepsi simgesi, durum makinesi, IPC
 audio.py          PCM kaydı: diktede pw-record, toplantıda ffmpeg
 meeting.py        kanal ayırma, konuşmacı etiketi, temizleme, tutanak
+assistant.py      dikteyi Claude Code'dan geçirip cevabı geri okuma
 api.py            iki sağlayıcıda transkript + OpenRouter temizleme (yalnız stdlib)
 worker.py         transkript → temizleme → pano → yapıştırma
 vad.py            kayıtta gerçekten konuşma var mı kararı

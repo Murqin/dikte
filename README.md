@@ -46,6 +46,7 @@ set next to it.
 | --- | --- |
 | Start / stop recording | `Ctrl+Space`, or click the tray icon |
 | Cancel a recording | Tray menu → *Cancel recording*, or `dikte cancel` |
+| Speak a command to Claude | Tray menu → *Ask Claude*, or `dikte ask` |
 | Start / end a meeting | Tray menu → *Record a meeting*, or `dikte meeting` |
 | Settings | Tray menu → *Settings*, or `dikte settings` |
 | Reload after an update | Tray menu → *Restart*, or `dikte restart` |
@@ -81,6 +82,14 @@ elapsed time, then the stage it is on. It never takes focus. Pressing
 - **A failed cleanup is never silent.** The raw transcript is still pasted so the
   dictation is not lost, but the indicator turns amber with the reason instead of
   looking like a normal run.
+- **A dictation can be a command instead.** Its own shortcut sends the
+  transcript to Claude Code (`claude -p`) rather than pasting it, and pastes back
+  what comes of it: the answer, or a sentence saying what was done. It is the
+  session you would have opened yourself, so your skills and connected services
+  are there, which is what makes "put that in my calendar on Thursday at three"
+  a thing you can say to a window that is not Claude. Model, permissions and
+  working directory are under Settings → Claude, and commands close together
+  stay in one conversation.
 - **Meetings** are recorded from the microphone and the speaker output at the
   same time, which settles who said what by the channel a voice arrived on
   instead of guessing at it. The two sides are transcribed separately and
@@ -112,6 +121,7 @@ needs your user in the `input` group: `sudo usermod -aG input $USER`.
 dikte.py          entry point, tray icon, state machine, IPC
 audio.py          PCM capture: pw-record for dictation, ffmpeg for a meeting
 meeting.py        channel split, speaker labelling, cleanup, minutes
+assistant.py      running a dictation through Claude Code and reading it back
 api.py            transcription on either provider, OpenRouter cleanup (stdlib only)
 worker.py         transcribe → clean up → clipboard → paste
 vad.py            deciding whether a recording holds speech at all

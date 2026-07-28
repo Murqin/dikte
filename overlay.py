@@ -23,9 +23,11 @@ ERR = QColor(240, 100, 90)
 WARN = QColor(240, 180, 80)
 THEM = QColor(110, 190, 255)   # the other side of a meeting
 
-STATE_COLORS = {"recording": REC, "meeting": REC, "busy": BUSY, "done": OK,
-                "warning": WARN, "error": ERR}
-LIVE = ("recording", "meeting")
+ASK = QColor(150, 140, 255)    # recording a command rather than a dictation
+
+STATE_COLORS = {"recording": REC, "asking": ASK, "meeting": REC, "busy": BUSY,
+                "done": OK, "warning": WARN, "error": ERR}
+LIVE = ("recording", "asking", "meeting")
 
 
 class Overlay(QWidget):
@@ -63,8 +65,10 @@ class Overlay(QWidget):
 
     # ---- public API --------------------------------------------------
 
-    def show_recording(self):
-        self.state = "recording"
+    def show_recording(self, asking=False):
+        """The same ribbon either way, in a different colour when what is being
+        recorded is a command for Claude rather than something to paste."""
+        self.state = "asking" if asking else "recording"
         self.message = ""
         self.seconds = 0.0
         self.levels = [0.0] * BARS
@@ -202,7 +206,7 @@ class Overlay(QWidget):
         self._draw_indicator(painter, accent)
 
         if self.state in LIVE:
-            self._draw_waveform(painter)
+            self._draw_waveform(painter, accent)
             self._draw_time(painter)
         else:
             self._draw_message(painter)
@@ -265,7 +269,7 @@ class Overlay(QWidget):
         color.setAlphaF(0.35 + 0.65 * min(1.0, shaped * 2.2))
         return color
 
-    def _draw_waveform(self, painter):
+    def _draw_waveform(self, painter, accent=REC):
         if self.state == "meeting":
             self._draw_dual_waveform(painter)
             return
@@ -275,7 +279,7 @@ class Overlay(QWidget):
         for i, level in enumerate(self.levels):
             shaped = min(1.0, level ** 0.55)
             h = 3.0 + shaped * 26.0
-            painter.setBrush(self._bar_colour(shaped, REC))
+            painter.setBrush(self._bar_colour(shaped, accent))
             painter.drawRoundedRect(
                 QRectF(left + i * step, mid - h / 2, bar_w, h), 1.3, 1.3
             )

@@ -287,6 +287,113 @@ TR = {
     "Delete the whole history? This cannot be undone.":
         "Geçmişin tamamı silinsin mi? Bu geri alınamaz.",
 
+    # --- asking Claude Code -------------------------------------------------
+    "Ask Claude": "Claude'a sor",
+    "Stop and ask Claude": "Kaydı bitir ve Claude'a sor",
+    "Start a new conversation": "Yeni konuşma başlat",
+    "Start a new conversation now": "Şimdi yeni konuşma başlat",
+    "Stop Claude": "Claude'u durdur",
+    "Stopping…": "Durduruluyor…",
+    "Stopped.": "Durduruldu.",
+    "Claude starts fresh next time.": "Claude bir sonrakine sıfırdan başlayacak.",
+    "Dikte: talking to Claude": "Dikte: Claude ile konuşuyor",
+    "Dikte: recording for Claude": "Dikte: Claude için kaydediyor",
+    "Asking Claude…": "Claude'a soruluyor…",
+    "Claude: {preview}": "Claude: {preview}",
+    "Claude answered, but: {error}": "Claude cevapladı, ama: {error}",
+    "Dikte: Claude could not do all of it": "Dikte: Claude her şeyi yapamadı",
+    "Claude was not allowed to use: {tools}":
+        "Claude şunları kullanamadı: {tools}",
+    "Running a command…": "Komut çalıştırıyor…",
+    "Reading…": "Okuyor…",
+    "Looking through files…": "Dosyalara bakıyor…",
+    "Searching the files…": "Dosyalarda arıyor…",
+    "Editing a file…": "Dosya düzenliyor…",
+    "Writing a file…": "Dosya yazıyor…",
+    "Searching the web…": "İnternette arıyor…",
+    "Reading a web page…": "Web sayfası okuyor…",
+    "Handing it to a subagent…": "Alt ajana devrediyor…",
+    "Planning…": "Planlıyor…",
+    "Using {name}…": "{name} kullanıyor…",
+    "claude not found. Install Claude Code and make sure `claude` is on your PATH.":
+        "claude bulunamadı. Claude Code'u kur ve `claude` komutunun PATH'te "
+        "olduğundan emin ol.",
+    "Could not run claude: {error}": "claude çalıştırılamadı: {error}",
+    "claude exited with code {code}.": "claude {code} koduyla çıktı.",
+    "Claude did not finish within {seconds} seconds.":
+        "Claude {seconds} saniye içinde bitirmedi.",
+    "Claude ended with an error.": "Claude bir hatayla sonlandı.",
+    "Claude answered with nothing.": "Claude boş cevap verdi.",
+
+    # --- settings: Claude ---------------------------------------------------
+    "Claude": "Claude",
+    "This shortcut records the same way dictation does, but the transcript is "
+    "not what gets pasted. It goes to Claude Code as a command, and what comes "
+    "back is pasted instead: the answer to a question, or a sentence saying "
+    "what was done. It runs as the session you would have opened yourself, "
+    "with your skills, your connected services and your account.":
+        "Bu kısayol dikte ile aynı şekilde kaydeder, ama yapıştırılan şey "
+        "transkript değildir. Transkript Claude Code'a komut olarak gider ve "
+        "yerine oradan döneni yapıştırılır: bir sorunun cevabı ya da ne "
+        "yapıldığını söyleyen bir cümle. Kendi açacağın oturumun aynısı olarak "
+        "çalışır: skill'lerinle, bağlı servislerinle ve kendi hesabınla.",
+    "How it runs": "Nasıl çalışıyor",
+    "The conversation": "Konuşma",
+    "The answer": "Cevap",
+    "Found: {path}": "Bulundu: {path}",
+    "claude is not on your PATH, so this cannot run yet. Install Claude Code "
+    "first.":
+        "claude PATH'te değil, dolayısıyla bu henüz çalışamaz. Önce Claude "
+        "Code'u kur.",
+    "No KDE shortcut installed. The tray menu asks Claude too.":
+        "Kurulu KDE kısayolu yok. Tepsi menüsünden de sorulabilir.",
+    "A name like “sonnet” always means the newest model of that line. Opus "
+    "thinks harder and answers slower, which is felt here more than anywhere "
+    "else: you are standing in front of the screen.":
+        "“sonnet” gibi bir ad her zaman o serinin en yenisini seçer. Opus daha "
+        "çok düşünür ve daha geç cevaplar; bu da en çok burada hissedilir, "
+        "çünkü ekranın başında bekliyorsun.",
+    "Permissions": "İzinler",
+    "Decide on its own, with the safety checks on":
+        "Kendi karar versin, güvenlik denetimleri açık",
+    "Allow everything": "Her şeye izin ver",
+    "Only what needs no permission": "Yalnızca izin gerektirmeyenler",
+    "Working directory": "Çalışma dizini",
+    "Choose…": "Seç…",
+    "The directory the command runs in, which decides which project's "
+    "instructions and files it can see. Your own skills and services are there "
+    "whichever one it is.":
+        "Komutun içinde çalıştığı dizin; hangi projenin talimatlarını ve "
+        "dosyalarını göreceğini bu belirler. Kendi skill'lerin ve servislerin "
+        "hangi dizin olursa olsun oradadır.",
+    "Give up after": "Şu süreden sonra vazgeç",
+    "A command still running after this is given up on. The tray menu can stop "
+    "one earlier.":
+        "Bu süreden sonra hâlâ süren komuttan vazgeçilir. Tepsi menüsünden daha "
+        "erken de durdurulabilir.",
+    "Carry on for": "Şu kadar süre sürsün",
+    "every command on its own": "her komut ayrı",
+    "Commands within this long of each other are one conversation, so “and move "
+    "that to Thursday” knows what “that” is. After it, the next command starts "
+    "fresh.":
+        "Birbirinden bu kadar süre içinde gelen komutlar tek bir konuşmadır; "
+        "böylece “onu perşembeye al” dediğinde “o”nun ne olduğu bilinir. Bu "
+        "sürenin ardından bir sonraki komut sıfırdan başlar.",
+    "No conversation going.": "Süren bir konuşma yok.",
+    "Last used {minutes} min ago.": "En son {minutes} dk önce kullanıldı.",
+    "Paste it into the focused window": "Odaktaki pencereye yapıştır",
+    "It is copied to the clipboard either way.": "Panoya her hâlükârda kopyalanır.",
+    "Clean the transcript up before sending it": "Göndermeden önce transkripti temizle",
+    "Off by default: Claude reads through “erm” and “you know” without help, "
+    "and cleanup costs an API call and a second or two.":
+        "Varsayılan olarak kapalı: Claude “eee” ve “hani”yi yardımsız da okur, "
+        "temizlik ise bir API çağrısına ve bir iki saniyeye mal olur.",
+    "Told to Claude alongside every command, on top of whatever your own "
+    "configuration already says.":
+        "Her komutla birlikte Claude'a söylenir, kendi yapılandırmanın zaten "
+        "söylediklerinin üstüne eklenir.",
+    "  ·  asked Claude: {question}": "  ·  Claude'a soruldu: {question}",
+
     # --- meetings: tray and pipeline ---------------------------------------
     "Record a meeting": "Toplantı kaydet",
     "End the meeting and write it up": "Toplantıyı bitir ve tutanağı çıkar",

@@ -1,4 +1,10 @@
-"""The dictation chain: transcribe → clean up → clipboard → paste."""
+"""The dictation chain: transcribe → clean up → clipboard → paste.
+
+The same chain also carries the other thing a dictation can be. Asked to, it
+hands the transcript to Claude Code instead of pasting it, and pastes back
+whatever came of it: an answer to a question, or a sentence saying what was
+done.
+"""
 
 import os
 import shutil
@@ -10,6 +16,7 @@ import traceback
 from PyQt6.QtCore import QObject, pyqtSignal
 
 import api
+import assistant
 import audio
 import config as cfg
 import paste
@@ -23,25 +30,38 @@ class Pipeline(QObject):
     stage = pyqtSignal(str)          # human-readable progress line
     finished = pyqtSignal(str, str, str)  # raw transcript, final text, warning
     failed = pyqtSignal(str)
+    cancelled = pyqtSignal()
 
     def __init__(self, conf, parent=None):
         super().__init__(parent)
         self.conf = conf
         self._thread = None
+        self._stop = threading.Event()
 
     @property
     def busy(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def run(self, wav_path, duration, rms_values=()):
+    def run(self, wav_path, duration, rms_values=(), ask=False):
         if self.busy:
             return
+        self._stop.clear()
         self._thread = threading.Thread(
-            target=self._work, args=(wav_path, duration, list(rms_values)), daemon=True
+            target=self._work, args=(wav_path, duration, list(rms_values), ask),
+            daemon=True,
         )
         self._thread.start()
 
-    def _work(self, wav_path, duration, rms_values):
+    def cancel(self):
+        """Give up on a job already under way.
+
+        Only the Claude call can honour this, and it is the only one long enough
+        to be worth interrupting: a transcription is over in seconds, a command
+        that went looking through the web is not.
+        """
+        self._stop.set()
+
+    def _work(self, wav_path, duration, rms_values, ask):
         conf = self.conf
         started = time.monotonic()
         raw = ""
@@ -75,7 +95,10 @@ class Pipeline(QObject):
 
             text = raw
             warning = ""
-            if conf["cleanup_enabled"]:
+            # Claude reads through “eee” and “hani” without help, so a dictation
+            # on its way there is normally sent as it was heard, one API call and
+            # a second or two lighter.
+            if (conf["assistant_cleanup"] if ask else conf["cleanup_enabled"]):
                 self.stage.emit(t("Cleaning up…"))
                 try:
                     text = api.cleanup(
@@ -93,10 +116,21 @@ class Pipeline(QObject):
                     warning = str(exc)
                     print(f"dikte: cleanup failed: {exc}", file=sys.stderr)
 
+            question = ""
+            if ask:
+                question = text
+                self.stage.emit(t("Asking Claude…"))
+                text, denied = assistant.ask(
+                    question, conf,
+                    on_stage=self.stage.emit,
+                    should_stop=self._stop.is_set,
+                )
+                warning = "\n".join(x for x in (warning, denied) if x)
+
             previous = paste.read_clipboard() if conf["restore_clipboard"] else None
             paste.copy(text)
 
-            if conf["auto_paste"]:
+            if (conf["assistant_paste"] if ask else conf["auto_paste"]):
                 self.stage.emit(t("Pasting…"))
                 paste.press(conf["paste_shortcut"])
                 if previous is not None:
@@ -110,6 +144,9 @@ class Pipeline(QObject):
                 "model": target.model,
                 "cleanup_model": conf["cleanup_model"] if conf["cleanup_enabled"] else "",
                 "cleanup_error": warning,
+                "mode": "ask" if ask else "",
+                "question": question,
+                "assistant_model": conf["assistant_model"] if ask else "",
                 "raw": raw,
                 "text": text,
             })
@@ -119,7 +156,9 @@ class Pipeline(QObject):
                 print(f"dikte: could not trim the history: {exc}", file=sys.stderr)
             self.finished.emit(raw, text, warning)
 
-        except (api.ApiError, paste.PasteError) as exc:
+        except assistant.Cancelled:
+            self.cancelled.emit()
+        except (api.ApiError, paste.PasteError, assistant.AssistantError) as exc:
             print(f"dikte: {exc}", file=sys.stderr)
             self.failed.emit(str(exc))
         except Exception as exc:  # never fail silently
