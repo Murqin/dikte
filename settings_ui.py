@@ -3,13 +3,13 @@
 import os
 import threading
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QGuiApplication, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit,
-    QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
 import api
@@ -17,6 +17,7 @@ import audio
 import config as cfg
 import filetranscribe
 import hotkey
+import meeting
 from filetranscribe import FileTranscriber
 from i18n import t
 
@@ -43,6 +44,17 @@ CLEANUP_MODELS = [
     "google/gemini-2.5-flash-lite", "anthropic/claude-haiku-4.5",
     "openai/gpt-5-mini", "meta-llama/llama-3.3-70b-instruct",
 ]
+# Minutes are a harder job than cleanup: an hour of talk has to be read whole
+# and turned into decisions, so the starting points are the larger models.
+MEETING_MODELS = [
+    "google/gemini-3.5-flash", "google/gemini-3.1-pro-preview",
+    "anthropic/claude-sonnet-5", "openai/gpt-5.4", "x-ai/grok-4.5",
+]
+MEETING_STATUS = {
+    "recorded": "waiting to be written up",
+    "transcribed": "transcript ready, minutes missing",
+    "failed": "failed",
+}
 # How hard the cleanup model may think before it answers, in OpenRouter's own
 # effort levels. A model that ignores the field simply answers as it always did.
 REASONING_LEVELS = [
@@ -63,10 +75,13 @@ class SettingsWindow(QDialog):
     _test_done = pyqtSignal(bool, str)
     _or_test_done = pyqtSignal(bool, str)
 
-    def __init__(self, conf, launch_command, parent=None):
+    def __init__(self, conf, launch_command, meeting_command=None,
+                 meetings=None, parent=None):
         super().__init__(parent)
         self.conf = conf
         self.launch_command = launch_command
+        self.meeting_command = meeting_command or launch_command
+        self.meetings = meetings
         # Each provider keeps its own transcription model, so switching the
         # provider back and forth never overwrites the other one's.
         self._models = {"openai": "", "openrouter": ""}
@@ -79,6 +94,8 @@ class SettingsWindow(QDialog):
         tabs.addTab(self._general_tab(), t("General"))
         tabs.addTab(self._api_tab(), t("API and models"))
         tabs.addTab(self._prompt_tab(), t("Cleanup rules"))
+        tabs.addTab(self._meeting_tab(), t("Meeting"))
+        tabs.addTab(self._minutes_tab(), t("Minutes"))
         tabs.addTab(self._file_tab(), t("Audio file"))
         tabs.addTab(self._shortcut_tab(), t("Shortcut"))
         tabs.addTab(self._history_tab(), t("History"))
@@ -101,6 +118,10 @@ class SettingsWindow(QDialog):
         self.transcriber.progress.connect(self._on_file_progress)
         self.transcriber.finished.connect(self._on_file_finished)
         self.transcriber.failed.connect(self._on_file_failed)
+        if self.meetings is not None:
+            self.meetings.progress.connect(self._on_minutes_progress)
+            self.meetings.finished.connect(self._on_minutes_finished)
+            self.meetings.failed.connect(self._on_minutes_failed)
         self._load()
 
     # ---- tabs ----------------------------------------------------------
@@ -281,6 +302,184 @@ class SettingsWindow(QDialog):
         self.transcribe_prompt = QPlainTextEdit()
         self.transcribe_prompt.setMaximumHeight(90)
         layout.addWidget(self.transcribe_prompt)
+        return page
+
+    def _meeting_tab(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        intro = QLabel(t(
+            "A meeting is recorded from two devices at once: your microphone and "
+            "whatever comes out of your speakers. Nothing has to guess who was "
+            "speaking, because the two never share a channel."
+        ))
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        sources = QGroupBox(t("Sound"))
+        sources_form = QFormLayout(sources)
+        self.meeting_mic = QComboBox()
+        self.meeting_mic.addItem(t("Same as dictation"), "")
+        for name, desc in audio.list_sources():
+            self.meeting_mic.addItem(desc, name)
+        sources_form.addRow(t("Microphone"), self.meeting_mic)
+
+        self.meeting_system = QComboBox()
+        self.meeting_system.addItem(t("Current output"), "")
+        for name, desc in audio.list_monitors():
+            self.meeting_system.addItem(desc, name)
+        sources_form.addRow(t("The other participants"), self.meeting_system)
+
+        note = QLabel(t(
+            "Wear headphones if you can. Through speakers your microphone hears "
+            "the other side as well, and although a line that lands on both "
+            "channels at once is dropped again, the repair is never as clean as "
+            "not needing it."
+        ))
+        note.setWordWrap(True)
+        sources_form.addRow(note)
+        layout.addWidget(sources)
+
+        people = QGroupBox(t("Who is talking"))
+        people_form = QFormLayout(people)
+        self.meeting_self_name = QLineEdit()
+        self.meeting_self_name.setPlaceholderText(t("Me"))
+        people_form.addRow(t("You"), self.meeting_self_name)
+        self.meeting_other_name = QLineEdit()
+        self.meeting_other_name.setPlaceholderText(t("Other side"))
+        people_form.addRow(t("The other end"), self.meeting_other_name)
+        self.meeting_participants = QPlainTextEdit()
+        self.meeting_participants.setMaximumHeight(70)
+        self.meeting_participants.setPlaceholderText(t("One name per line"))
+        people_form.addRow(t("Expected"), self.meeting_participants)
+        people_note = QLabel(t(
+            "Everyone on the far end shares one label: they reach you as a single "
+            "mixed signal. The names go to the transcription model so they come "
+            "out spelled right, and to the minutes, which may use one for a line "
+            "only when the conversation itself makes clear who was speaking."
+        ))
+        people_note.setWordWrap(True)
+        people_form.addRow(people_note)
+        layout.addWidget(people)
+
+        models = QGroupBox(t("Minutes"))
+        models_form = QFormLayout(models)
+        self.meeting_model = QComboBox()
+        self.meeting_model.setEditable(True)
+        self.meeting_model.addItems(MEETING_MODELS)
+        models_form.addRow(t("Model"), self.meeting_model)
+        self.meeting_reasoning = QComboBox()
+        for label, value in REASONING_LEVELS:
+            self.meeting_reasoning.addItem(t(label), value)
+        self.meeting_reasoning.setToolTip(t(
+            "Unlike cleanup, this one is worth some thinking: it has to hold a "
+            "whole meeting in its head and work out what was actually decided."
+        ))
+        models_form.addRow(t("Thinking"), self.meeting_reasoning)
+        self.meeting_language = QComboBox()
+        self.meeting_language.addItem(t("Same as dictation"), "")
+        for label, code in LANGUAGES:
+            self.meeting_language.addItem(t(label), code)
+        models_form.addRow(t("Speech language"), self.meeting_language)
+        self.meeting_cleanup = QCheckBox(t("Clean the transcript up first"))
+        self.meeting_cleanup.setToolTip(t(
+            "Runs the cleanup model over the transcript before the minutes are "
+            "written, keeping the timestamps and the speaker labels."
+        ))
+        models_form.addRow("", self.meeting_cleanup)
+        layout.addWidget(models)
+
+        recording = QGroupBox(t("Recording"))
+        recording_form = QFormLayout(recording)
+        self.meeting_max_minutes = QSpinBox()
+        self.meeting_max_minutes.setRange(5, 600)
+        self.meeting_max_minutes.setSuffix(t(" min"))
+        recording_form.addRow(t("Longest meeting"), self.meeting_max_minutes)
+        self.meeting_keep_audio = QCheckBox(
+            t("Keep the recording after the minutes are written")
+        )
+        self.meeting_keep_audio.setToolTip(t(
+            "A run that fails keeps its recording either way, so it can be tried "
+            "again from the Minutes tab. This is about the ones that worked."
+        ))
+        recording_form.addRow("", self.meeting_keep_audio)
+
+        self.meeting_shortcut = QLineEdit()
+        self.meeting_shortcut.setPlaceholderText(t("none"))
+        install = QPushButton(t("Install as a KDE shortcut"))
+        install.clicked.connect(self._install_meeting_shortcut)
+        remove = QPushButton(t("Remove"))
+        remove.clicked.connect(self._remove_meeting_shortcut)
+        recording_form.addRow(t("Shortcut"),
+                              self._row(self.meeting_shortcut, install, remove))
+        self.meeting_shortcut_status = QLabel("")
+        self.meeting_shortcut_status.setWordWrap(True)
+        recording_form.addRow(self.meeting_shortcut_status)
+        layout.addWidget(recording)
+
+        prompt_label = QLabel(t("System instruction given to the minutes model."))
+        prompt_label.setWordWrap(True)
+        layout.addWidget(prompt_label)
+        self.meeting_prompt = QPlainTextEdit()
+        self.meeting_prompt.setMinimumHeight(200)
+        layout.addWidget(self.meeting_prompt, 1)
+        reset = QPushButton(t("Reset to default"))
+        reset.clicked.connect(
+            lambda: self.meeting_prompt.setPlainText(cfg.default_meeting_prompt())
+        )
+        layout.addWidget(reset, 0, Qt.AlignmentFlag.AlignRight)
+
+        # Everything above is more than one screenful; let it scroll rather than
+        # squeezing the prompt box down to nothing.
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QScrollArea.Shape.NoFrame)
+        area.setWidget(page)
+        return area
+
+    def _minutes_tab(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        self.minutes_list = QListWidget()
+        self.minutes_list.setWordWrap(True)
+        self.minutes_list.setMaximumHeight(170)
+        self.minutes_list.currentItemChanged.connect(self._show_minutes)
+        layout.addWidget(self.minutes_list)
+
+        self.minutes_status = QLabel("")
+        self.minutes_status.setWordWrap(True)
+        layout.addWidget(self.minutes_status)
+
+        self.minutes_view = QPlainTextEdit()
+        self.minutes_view.setReadOnly(True)
+        self.minutes_view.setPlaceholderText(t("Pick a meeting to read it."))
+        layout.addWidget(self.minutes_view, 1)
+
+        copy = QPushButton(t("Copy"))
+        copy.clicked.connect(
+            lambda: QGuiApplication.clipboard().setText(self.minutes_view.toPlainText())
+        )
+        self.minutes_retry = QPushButton(t("Write it up"))
+        self.minutes_retry.clicked.connect(self._retry_minutes)
+        self.minutes_retry.setEnabled(False)
+        folder = QPushButton(t("Open the folder"))
+        folder.clicked.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(cfg.MEETINGS_DIR))
+            )
+        )
+        delete = QPushButton(t("Delete selected"))
+        delete.clicked.connect(self._delete_minutes)
+        reload_ = QPushButton(t("Reload"))
+        reload_.clicked.connect(self._load_minutes)
+        row = QHBoxLayout()
+        row.addWidget(copy)
+        row.addWidget(self.minutes_retry)
+        row.addStretch(1)
+        row.addWidget(folder)
+        row.addWidget(delete)
+        row.addWidget(reload_)
+        layout.addLayout(row)
         return page
 
     def _file_tab(self):
@@ -478,6 +677,22 @@ class SettingsWindow(QDialog):
         self.cleanup_prompt.setPlainText(conf["cleanup_prompt"] or cfg.default_cleanup_prompt())
         self.transcribe_prompt.setPlainText(conf["transcribe_prompt"])
 
+        self._select_data(self.meeting_mic, conf["meeting_mic_target"])
+        self._select_data(self.meeting_system, conf["meeting_system_target"])
+        self.meeting_self_name.setText(conf["meeting_self_name"])
+        self.meeting_other_name.setText(conf["meeting_other_name"])
+        self.meeting_participants.setPlainText(conf["meeting_participants"])
+        self.meeting_model.setCurrentText(conf["meeting_model"])
+        self._select_data(self.meeting_reasoning, conf["meeting_reasoning"])
+        self._select_data(self.meeting_language, conf["meeting_language"])
+        self.meeting_cleanup.setChecked(conf["meeting_cleanup"])
+        self.meeting_max_minutes.setValue(max(5, int(conf["meeting_max_seconds"]) // 60))
+        self.meeting_keep_audio.setChecked(conf["meeting_keep_audio"])
+        self.meeting_shortcut.setText(conf["meeting_shortcut"])
+        self.meeting_prompt.setPlainText(
+            conf["meeting_prompt"] or cfg.default_meeting_prompt()
+        )
+
         self.file_timestamps.setChecked(conf["file_timestamps"])
         self.file_cleanup.setChecked(conf["file_cleanup"])
         self.file_path = ""
@@ -488,7 +703,9 @@ class SettingsWindow(QDialog):
         self.history_limit.setValue(max(0, int(conf["history_limit"])))
 
         self._refresh_shortcut_status()
+        self._refresh_meeting_shortcut_status()
         self._load_history()
+        self._load_minutes()
 
     def _save(self):
         conf = self.conf
@@ -524,6 +741,23 @@ class SettingsWindow(QDialog):
         prompt = self.cleanup_prompt.toPlainText().strip()
         conf["cleanup_prompt"] = "" if prompt == cfg.default_cleanup_prompt() else prompt
         conf["transcribe_prompt"] = self.transcribe_prompt.toPlainText().strip()
+
+        conf["meeting_mic_target"] = self.meeting_mic.currentData() or ""
+        conf["meeting_system_target"] = self.meeting_system.currentData() or ""
+        conf["meeting_self_name"] = self.meeting_self_name.text().strip()
+        conf["meeting_other_name"] = self.meeting_other_name.text().strip()
+        conf["meeting_participants"] = self.meeting_participants.toPlainText().strip()
+        conf["meeting_model"] = (self.meeting_model.currentText().strip()
+                                 or cfg.DEFAULTS["meeting_model"])
+        conf["meeting_reasoning"] = self.meeting_reasoning.currentData() or ""
+        conf["meeting_language"] = self.meeting_language.currentData() or ""
+        conf["meeting_cleanup"] = self.meeting_cleanup.isChecked()
+        conf["meeting_max_seconds"] = self.meeting_max_minutes.value() * 60
+        conf["meeting_keep_audio"] = self.meeting_keep_audio.isChecked()
+        conf["meeting_shortcut"] = self.meeting_shortcut.text().strip()
+        meeting_prompt = self.meeting_prompt.toPlainText().strip()
+        conf["meeting_prompt"] = ("" if meeting_prompt == cfg.default_meeting_prompt()
+                                  else meeting_prompt)
 
         conf["file_timestamps"] = self.file_timestamps.isChecked()
         conf["file_cleanup"] = self.file_cleanup.isChecked()
@@ -608,10 +842,11 @@ class SettingsWindow(QDialog):
         if error:
             self.models_label.setText(t("Could not fetch the list: {error}", error=error))
             return
-        current = self.cleanup_model.currentText()
-        self.cleanup_model.clear()
-        self.cleanup_model.addItems(models)
-        self.cleanup_model.setCurrentText(current)
+        for combo in (self.cleanup_model, self.meeting_model):
+            current = combo.currentText()
+            combo.clear()
+            combo.addItems(models)
+            combo.setCurrentText(current)
         self.models_label.setText(t("{count} models loaded.", count=len(models)))
 
     def _test_openai(self):
@@ -763,6 +998,120 @@ class SettingsWindow(QDialog):
             else t("No KDE shortcut installed.")
         )
 
+    def _install_meeting_shortcut(self):
+        combo = self.meeting_shortcut.text().strip()
+        if not combo:
+            QMessageBox.information(self, t("Shortcut"),
+                                    t("Type a key combination first."))
+            return
+        clashes = hotkey.conflicting_shortcuts(combo, hotkey.MEETING_DESKTOP_ID)
+        if clashes:
+            answer = QMessageBox.question(
+                self, t("Shortcut conflict"),
+                t("{shortcut} is also used by:\n\n{list}\n\nInstall anyway?",
+                  shortcut=combo, list="\n".join(clashes[:6])),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        ok, message = hotkey.install_kde_shortcut(
+            combo, self.meeting_command, name="Dikte: start/end a meeting recording",
+            desktop_id=hotkey.MEETING_DESKTOP_ID,
+        )
+        QMessageBox.information(self, t("Shortcut"), message)
+        if ok:
+            self.conf["meeting_shortcut"] = combo
+            self.conf.save()
+        self._refresh_meeting_shortcut_status()
+
+    def _remove_meeting_shortcut(self):
+        hotkey.remove_kde_shortcut(hotkey.MEETING_DESKTOP_ID)
+        self._refresh_meeting_shortcut_status()
+
+    def _refresh_meeting_shortcut_status(self):
+        current = hotkey.kde_shortcut_status(hotkey.MEETING_DESKTOP_ID)
+        self.meeting_shortcut_status.setText(
+            t("Registered in KDE: {shortcut}", shortcut=current) if current
+            else t("No KDE shortcut installed. The tray menu starts a meeting too.")
+        )
+
+    # ---- minutes ---------------------------------------------------------
+
+    def _load_minutes(self):
+        self.minutes_list.clear()
+        for row in reversed(cfg.read_meetings()):
+            title = row.get("title") or t("Meeting")
+            head = f"{row.get('ts', '')}  ·  {meeting.length_label(row.get('duration', 0))}"
+            state = MEETING_STATUS.get(row.get("status", ""), "")
+            if state:
+                head += "  ·  " + t(state)
+            item = QListWidgetItem(f"{head}\n{title}")
+            item.setData(Qt.ItemDataRole.UserRole, row)
+            self.minutes_list.addItem(item)
+        if not self.minutes_list.count():
+            self.minutes_view.clear()
+            self.minutes_retry.setEnabled(False)
+
+    def _selected_meeting(self):
+        item = self.minutes_list.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+
+    def _show_minutes(self, *_):
+        row = self._selected_meeting()
+        if not row:
+            self.minutes_view.clear()
+            self.minutes_retry.setEnabled(False)
+            return
+        doc_path, _wav = cfg.meeting_paths(row["base"])
+        try:
+            self.minutes_view.setPlainText(doc_path.read_text(encoding="utf-8"))
+        except OSError:
+            self.minutes_view.setPlainText(
+                row.get("error") or t("Nothing has been written yet.")
+            )
+        busy = self.meetings is not None and self.meetings.busy
+        self.minutes_retry.setEnabled(
+            self.meetings is not None and not busy and row.get("status") != "done"
+        )
+
+    def _retry_minutes(self):
+        row = self._selected_meeting()
+        if not row or self.meetings is None or self.meetings.busy:
+            return
+        # A row that already has its transcript resumes from there; only a run
+        # that never got that far goes back to the audio.
+        self.meetings.run(row)
+        self.minutes_retry.setEnabled(False)
+        self.minutes_status.setText(t("Working…"))
+
+    def _delete_minutes(self):
+        row = self._selected_meeting()
+        if not row:
+            return
+        if self.meetings is not None and self.meetings.running_base == row["base"]:
+            QMessageBox.information(self, t("Minutes"),
+                                    t("This one is being written up right now."))
+            return
+        if not self._confirm(
+            t("Delete this meeting, its minutes and its recording?"), t("Minutes")
+        ):
+            return
+        try:
+            cfg.delete_meetings([row["base"]])
+        except OSError as exc:
+            QMessageBox.warning(self, t("Minutes"), t("Failed: {error}", error=exc))
+        self._load_minutes()
+
+    def _on_minutes_progress(self, _base, message):
+        self.minutes_status.setText(message)
+
+    def _on_minutes_finished(self, _base, title):
+        self.minutes_status.setText(t("Done: {title}", title=title))
+        self._load_minutes()
+
+    def _on_minutes_failed(self, _base, error):
+        self.minutes_status.setText(t("Failed: {error}", error=error))
+        self._load_minutes()
+
     # ---- history ---------------------------------------------------------
 
     def _load_history(self):
@@ -807,9 +1156,9 @@ class SettingsWindow(QDialog):
             return
         self._rewrite_history(cfg.clear_history)
 
-    def _confirm(self, question):
+    def _confirm(self, question, title=None):
         answer = QMessageBox.question(
-            self, t("History"), question,
+            self, title or t("History"), question,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

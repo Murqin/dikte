@@ -14,7 +14,9 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from i18n import t
 
 DESKTOP_ID = "dikte-toggle.desktop"
-DESKTOP_FILE = pathlib.Path.home() / ".local/share/applications" / DESKTOP_ID
+MEETING_DESKTOP_ID = "dikte-meeting.desktop"
+APPLICATIONS_DIR = pathlib.Path.home() / ".local/share/applications"
+DESKTOP_FILE = APPLICATIONS_DIR / DESKTOP_ID
 SHORTCUTS_FILE = pathlib.Path.home() / ".config/kglobalshortcutsrc"
 
 # --- evdev key codes (linux/input-event-codes.h) --------------------------
@@ -61,13 +63,13 @@ def parse_shortcut(text):
 # --- built-in listener ----------------------------------------------------
 
 class EvdevHotkey(QObject):
-    """Catches a global shortcut by reading /dev/input directly.
+    """Catches global shortcuts by reading /dev/input directly.
 
     It does not swallow the key; the focused application sees the combination
     too. This is the fallback that works before the KDE shortcut goes live.
     """
 
-    triggered = pyqtSignal()
+    triggered = pyqtSignal(str)   # the name the binding was registered under
     failed = pyqtSignal(str)
 
     EVENT_FMT = "llHHi"
@@ -77,18 +79,27 @@ class EvdevHotkey(QObject):
         super().__init__(parent)
         self._thread = None
         self._stop = threading.Event()
-        self._mods = set()
-        self._key = None
+        self._bindings = {}   # key code -> [(mods, name)]
 
     @property
     def running(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, shortcut):
+    def start(self, bindings):
+        """`bindings` is {name: 'Ctrl+Space'}; an empty combination is skipped."""
         self.stop()
-        mods, key = parse_shortcut(shortcut)
-        if key is None:
-            self.failed.emit(t("Could not parse the shortcut: {shortcut}", shortcut=shortcut))
+        parsed = {}
+        for name, shortcut in bindings.items():
+            if not shortcut:
+                continue
+            mods, key = parse_shortcut(shortcut)
+            if key is None:
+                self.failed.emit(
+                    t("Could not parse the shortcut: {shortcut}", shortcut=shortcut)
+                )
+                continue
+            parsed.setdefault(key, []).append((mods, name))
+        if not parsed:
             return False
         devices = self._open_devices()
         if not devices:
@@ -97,7 +108,7 @@ class EvdevHotkey(QObject):
                 "  sudo usermod -aG input $USER   (then log out and back in)"
             ))
             return False
-        self._mods, self._key = mods, key
+        self._bindings = parsed
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, args=(devices,), daemon=True)
         self._thread.start()
@@ -138,9 +149,10 @@ class EvdevHotkey(QObject):
                             continue
                         if code in ALL_MOD_CODES:
                             held.add(code) if value else held.discard(code)
-                        elif code == self._key and value == 1:
-                            if self._mods_match(held):
-                                self.triggered.emit()
+                        elif value == 1:
+                            for mods, name in self._bindings.get(code, ()):
+                                if self._mods_match(held, mods):
+                                    self.triggered.emit(name)
         finally:
             for fd in fds:
                 try:
@@ -148,28 +160,30 @@ class EvdevHotkey(QObject):
                 except OSError:
                     pass
 
-    def _mods_match(self, held):
+    @staticmethod
+    def _mods_match(held, wanted):
         for name, codes in MODS.items():
             if name in ("control", "super"):
                 continue
-            canonical = "ctrl" if name == "control" else name
             pressed = any(code in held for code in codes)
-            if pressed != (canonical in self._mods):
+            if pressed != (name in wanted):
                 return False
         return True
 
 
 # --- KDE custom shortcut --------------------------------------------------
 
-def install_kde_shortcut(shortcut, exec_command, name="Dikte: start/stop recording"):
+def install_kde_shortcut(shortcut, exec_command, name="Dikte: start/stop recording",
+                         desktop_id=DESKTOP_ID):
     """Write the desktop file and the kglobalshortcutsrc entry.
 
     KWin only reads that file at startup, so the entry goes live after the next
     login. Returns (True, message) or (False, error).
     """
+    desktop_file = APPLICATIONS_DIR / desktop_id
     try:
-        DESKTOP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        DESKTOP_FILE.write_text(
+        desktop_file.parent.mkdir(parents=True, exist_ok=True)
+        desktop_file.write_text(
             "[Desktop Entry]\n"
             f"Exec={exec_command}\n"
             f"Name={name}\n"
@@ -185,7 +199,7 @@ def install_kde_shortcut(shortcut, exec_command, name="Dikte: start/stop recordi
     try:
         subprocess.run(
             ["kwriteconfig6", "--notify", "--file", "kglobalshortcutsrc",
-             "--group", "services", "--group", DESKTOP_ID,
+             "--group", "services", "--group", desktop_id,
              "--key", "_launch", shortcut],
             capture_output=True, text=True, timeout=10, check=True,
         )
@@ -200,31 +214,31 @@ def install_kde_shortcut(shortcut, exec_command, name="Dikte: start/stop recordi
     )
 
 
-def remove_kde_shortcut():
+def remove_kde_shortcut(desktop_id=DESKTOP_ID):
     try:
-        DESKTOP_FILE.unlink(missing_ok=True)
+        (APPLICATIONS_DIR / desktop_id).unlink(missing_ok=True)
     except OSError:
         pass
     try:
         subprocess.run(
             ["kwriteconfig6", "--notify", "--file", "kglobalshortcutsrc",
-             "--group", "services", "--group", DESKTOP_ID, "--key", "_launch", "--delete"],
+             "--group", "services", "--group", desktop_id, "--key", "_launch", "--delete"],
             capture_output=True, timeout=10,
         )
     except (subprocess.SubprocessError, OSError):
         pass
 
 
-def kde_shortcut_status():
+def kde_shortcut_status(desktop_id=DESKTOP_ID):
     """The registered shortcut, or None."""
-    if not DESKTOP_FILE.exists():
+    if not (APPLICATIONS_DIR / desktop_id).exists():
         return None
     try:
         text = SHORTCUTS_FILE.read_text(encoding="utf-8")
     except OSError:
         return None
     match = re.search(
-        r"\[services\]\[" + re.escape(DESKTOP_ID) + r"\]\n_launch=([^\n]*)", text
+        r"\[services\]\[" + re.escape(desktop_id) + r"\]\n_launch=([^\n]*)", text
     )
     if not match:
         return None
@@ -232,7 +246,7 @@ def kde_shortcut_status():
     return value or None
 
 
-def conflicting_shortcuts(shortcut):
+def conflicting_shortcuts(shortcut, desktop_id=DESKTOP_ID):
     """Names of other KDE entries bound to the same combination."""
     try:
         text = SHORTCUTS_FILE.read_text(encoding="utf-8")
@@ -243,7 +257,7 @@ def conflicting_shortcuts(shortcut):
         if line.startswith("["):
             section = line.strip("[]").replace("][", " / ")
             continue
-        if "=" not in line or DESKTOP_ID in section:
+        if "=" not in line or desktop_id in section:
             continue
         key, _, value = line.partition("=")
         if shortcut.lower() in value.lower().split(","):

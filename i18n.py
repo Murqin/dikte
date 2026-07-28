@@ -286,4 +286,122 @@ TR = {
     "Delete the {count} selected entries?": "Seçili {count} kayıt silinsin mi?",
     "Delete the whole history? This cannot be undone.":
         "Geçmişin tamamı silinsin mi? Bu geri alınamaz.",
+
+    # --- meetings: tray and pipeline ---------------------------------------
+    "Record a meeting": "Toplantı kaydet",
+    "End the meeting and write it up": "Toplantıyı bitir ve tutanağı çıkar",
+    "Writing the meeting up…": "Tutanak çıkarılıyor…",
+    "Discard the meeting": "Toplantıyı iptal et",
+    "Ending the meeting…": "Toplantı bitiriliyor…",
+    "Dikte: in a meeting": "Dikte: toplantıda",
+    "Dikte: in a meeting ({time})": "Dikte: toplantıda ({time})",
+    "Dikte: writing the meeting up": "Dikte: tutanak çıkarıyor",
+    "Meeting recorded, writing it up…": "Toplantı kaydedildi, tutanak çıkarılıyor…",
+    "Meeting written up: {title}": "Tutanak hazır: {title}",
+    "Dikte: the meeting is written up": "Dikte: tutanak hazır",
+    "Meeting failed: {error}": "Toplantı başarısız: {error}",
+    "Dikte: the meeting could not be written up": "Dikte: tutanak çıkarılamadı",
+    "{error}\n\nThe recording has been kept. Settings → Minutes can try again.":
+        "{error}\n\nSes kaydı duruyor. Ayarlar → Tutanaklar üzerinden yeniden "
+        "denenebilir.",
+    "Recording saved. The previous meeting is still being written up, so start "
+    "this one from Settings → Minutes when it is done.":
+        "Kayıt saklandı. Önceki toplantının tutanağı hâlâ çıkarılıyor; bu kaydı o "
+        "bitince Ayarlar → Tutanaklar üzerinden başlat.",
+    "The recording stopped on its own; the sound device may have gone away. "
+    "Keeping what was captured.":
+        "Kayıt kendiliğinden durdu, ses aygıtı çekilmiş olabilir. O ana kadar "
+        "kaydedilen saklanıyor.",
+    "ffmpeg not found. Install it to record a meeting.":
+        "ffmpeg bulunamadı. Toplantı kaydı için kur.",
+    "Could not work out which speaker output to record. Pick one in "
+    "Settings → Meeting.":
+        "Hangi ses çıkışının kaydedileceği anlaşılamadı. Ayarlar → Toplantı "
+        "sekmesinden seç.",
+    "Nothing was recorded: {error}": "Hiçbir şey kaydedilmedi: {error}",
+    "Transcribing {side}: {index}/{count}…":
+        "{side} yazıya çevriliyor: {index}/{count}…",
+    "you": "sen",
+    "the others": "karşı taraf",
+    "Cleaning up {index}/{count}…": "Temizleniyor {index}/{count}…",
+    "Writing the minutes…": "Tutanak yazılıyor…",
+    "Neither side of the recording had any speech in it.":
+        "Kaydın iki tarafında da konuşma yok.",
+    "This recording is not a two-channel meeting.":
+        "Bu kayıt iki kanallı bir toplantı kaydı değil.",
+    "The recording is gone: {path}": "Ses kaydı yerinde yok: {path}",
+    "Meeting": "Toplantı",
+    "Transcript": "Transkript",
+    "{minutes} min": "{minutes} dk",
+    "{hours} h {minutes} min": "{hours} sa {minutes} dk",
+
+    # --- settings: meeting --------------------------------------------------
+    "Minutes": "Tutanaklar",
+    "A meeting is recorded from two devices at once: your microphone and "
+    "whatever comes out of your speakers. Nothing has to guess who was "
+    "speaking, because the two never share a channel.":
+        "Toplantı iki aygıttan aynı anda kaydedilir: mikrofonun ve hoparlöründen "
+        "çıkan ses. Kimin konuştuğunun tahmin edilmesi gerekmez, çünkü ikisi hiç "
+        "aynı kanala girmez.",
+    "Sound": "Ses",
+    "Same as dictation": "Diktedekiyle aynı",
+    "Current output": "Geçerli çıkış",
+    "The other participants": "Karşı tarafın sesi",
+    "Wear headphones if you can. Through speakers your microphone hears the "
+    "other side as well, and although a line that lands on both channels at "
+    "once is dropped again, the repair is never as clean as not needing it.":
+        "Yapabiliyorsan kulaklık tak. Hoparlörde mikrofonun karşı tarafı da "
+        "duyar; aynı anda iki kanala birden düşen satır ayıklanıyor ama bu "
+        "onarım, hiç gerekmemesi kadar temiz olmuyor.",
+    "Who is talking": "Kimler konuşuyor",
+    "Me": "Ben",
+    "Other side": "Karşı taraf",
+    "You": "Sen",
+    "The other end": "Karşı taraf",
+    "Expected": "Beklenen kişiler",
+    "One name per line": "Her satıra bir isim",
+    "Everyone on the far end shares one label: they reach you as a single mixed "
+    "signal. The names go to the transcription model so they come out spelled "
+    "right, and to the minutes, which may use one for a line only when the "
+    "conversation itself makes clear who was speaking.":
+        "Karşı taraftaki herkes tek bir etiketi paylaşır; sana tek bir karışım "
+        "olarak gelirler. İsimler, doğru yazılsınlar diye transkripsiyon modeline "
+        "ve tutanağa gider; tutanak bir satıra ancak konuşmanın kendisi kimin "
+        "konuştuğunu açık ediyorsa isim yazar.",
+    "Unlike cleanup, this one is worth some thinking: it has to hold a whole "
+    "meeting in its head and work out what was actually decided.":
+        "Temizlemenin aksine burada düşünmenin karşılığı var: model bütün "
+        "toplantıyı aklında tutup neyin gerçekten karara bağlandığını çıkarmak "
+        "zorunda.",
+    "Clean the transcript up first": "Önce transkripti temizle",
+    "Runs the cleanup model over the transcript before the minutes are written, "
+    "keeping the timestamps and the speaker labels.":
+        "Tutanak yazılmadan önce transkripti temizleme modelinden geçirir; zaman "
+        "damgaları ve konuşmacı etiketleri korunur.",
+    "Recording": "Kayıt",
+    " min": " dk",
+    "Longest meeting": "En uzun toplantı",
+    "Keep the recording after the minutes are written":
+        "Tutanak çıktıktan sonra ses kaydını sakla",
+    "A run that fails keeps its recording either way, so it can be tried again "
+    "from the Minutes tab. This is about the ones that worked.":
+        "Başarısız olan bir işlemin kaydı zaten saklanır, Tutanaklar sekmesinden "
+        "yeniden denenebilsin diye. Buradaki ayar başarıyla bitenler için.",
+    "none": "yok",
+    "Type a key combination first.": "Önce bir tuş kombinasyonu yaz.",
+    "No KDE shortcut installed. The tray menu starts a meeting too.":
+        "KDE kısayolu kurulu değil. Toplantıyı tepsi menüsünden de başlatabilirsin.",
+    "System instruction given to the minutes model.":
+        "Tutanak modeline verilen sistem talimatı.",
+    "Pick a meeting to read it.": "Okumak için bir toplantı seç.",
+    "Write it up": "Tutanağı çıkar",
+    "Open the folder": "Klasörü aç",
+    "waiting to be written up": "tutanak bekliyor",
+    "transcript ready, minutes missing": "transkript hazır, tutanak eksik",
+    "failed": "başarısız",
+    "Nothing has been written yet.": "Henüz bir şey yazılmadı.",
+    "Done: {title}": "Bitti: {title}",
+    "This one is being written up right now.": "Bunun tutanağı şu anda çıkarılıyor.",
+    "Delete this meeting, its minutes and its recording?":
+        "Bu toplantı, tutanağı ve ses kaydı silinsin mi?",
 }

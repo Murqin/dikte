@@ -5,6 +5,8 @@ Usage:
   dikte.py               run in the background (tray icon)
   dikte.py toggle        start / stop recording
   dikte.py cancel        discard the current recording
+  dikte.py meeting       start / end a meeting recording
+  dikte.py meeting-cancel  discard the meeting being recorded
   dikte.py settings      open the settings window
   dikte.py restart       reload the running instance
   dikte.py quit          shut the application down
@@ -26,18 +28,28 @@ from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon  # noqa: E402
 import audio  # noqa: E402
 import config as cfg  # noqa: E402
 import hotkey  # noqa: E402
+import meeting  # noqa: E402
 from i18n import t  # noqa: E402
+from meeting import MeetingPipeline  # noqa: E402
 from overlay import Overlay  # noqa: E402
 from settings_ui import SettingsWindow  # noqa: E402
 from worker import Pipeline  # noqa: E402
 
 SERVER_NAME = "dikte-" + str(os.getuid())
 IDLE, RECORDING, BUSY = "idle", "recording", "busy"
+# A meeting runs alongside dictation rather than through it: writing up an hour
+# of audio takes minutes, and dictation should not be held hostage to it.
+M_IDLE, M_RECORDING, M_WORKING = "idle", "recording", "working"
 
 # The KDE shortcut answers a key press by launching a whole Python process, so
 # its toggle lands well after the built-in listener has handled the same press.
 # Anything arriving inside this window is that echo, not a second press.
 ECHO_MS = 2000
+
+# How long the indicator stays up at the start of a meeting. Long enough to see
+# both halves of the waveform move, which is the one check that matters, and
+# short enough not to sit in the corner for the rest of the hour.
+PEEK_MS = 12000
 
 
 class Dikte:
@@ -45,11 +57,17 @@ class Dikte:
         self.app = app
         self.conf = cfg.Config()
         self.state = IDLE
+        self.meeting_state = M_IDLE
+        self.meeting_base = ""
+        self.meeting_message = ""
         self.settings_window = None
+        self._quitting = False
 
         self.overlay = Overlay(self.conf["overlay_corner"])
         self.recorder = audio.Recorder()
         self.pipeline = Pipeline(self.conf)
+        self.meeting_recorder = audio.MeetingRecorder()
+        self.meetings = MeetingPipeline(self.conf)
         self.evdev = hotkey.EvdevHotkey()
 
         self.recorder.level.connect(self.overlay.push_level)
@@ -58,15 +76,26 @@ class Dikte:
         self.pipeline.stage.connect(self.overlay.show_busy)
         self.pipeline.finished.connect(self._on_finished)
         self.pipeline.failed.connect(self._on_error)
+        self.meeting_recorder.levels.connect(self._on_meeting_levels)
+        self.meeting_recorder.stopped.connect(self._on_meeting_recorded)
+        self.meeting_recorder.died.connect(self._on_meeting_died)
+        self.meeting_recorder.failed.connect(self._on_meeting_error)
+        self.meetings.progress.connect(self._on_meeting_progress)
+        self.meetings.finished.connect(self._on_meeting_finished)
+        self.meetings.failed.connect(self._on_meeting_failed)
         self.evdev.triggered.connect(self._on_evdev)
         self.evdev.failed.connect(self._on_error)
 
         self.elapsed = QElapsedTimer()
+        self.meeting_elapsed = QElapsedTimer()
         self.last_toggle = QElapsedTimer()
-        self.last_evdev = QElapsedTimer()
+        self.last_evdev = {}
         self.ticker = QTimer()
         self.ticker.setInterval(100)
         self.ticker.timeout.connect(self._tick)
+        self.meeting_ticker = QTimer()
+        self.meeting_ticker.setInterval(500)
+        self.meeting_ticker.timeout.connect(self._meeting_tick)
 
         self.tray = QSystemTrayIcon()
         self._apply_settings()
@@ -86,6 +115,16 @@ class Dikte:
         self.cancel_action.triggered.connect(self.cancel)
         self.cancel_action.setEnabled(False)
         self.menu.addAction(self.cancel_action)
+        self.menu.addSeparator()
+
+        self.meeting_action = QAction(t("Record a meeting"), self.menu)
+        self.meeting_action.triggered.connect(self._toggle_meeting)
+        self.menu.addAction(self.meeting_action)
+
+        self.meeting_cancel_action = QAction(t("Discard the meeting"), self.menu)
+        self.meeting_cancel_action.triggered.connect(self.cancel_meeting)
+        self.meeting_cancel_action.setEnabled(False)
+        self.menu.addAction(self.meeting_cancel_action)
         self.menu.addSeparator()
 
         self.settings_action = QAction(t("Settings…"), self.menu)
@@ -120,15 +159,45 @@ class Dikte:
 
     def _set_state(self, state):
         self.state = state
+        self._refresh_tray()
+
+    def _set_meeting_state(self, state):
+        self.meeting_state = state
+        if state != M_WORKING:
+            self.meeting_message = ""
+        self._refresh_tray()
+
+    def _refresh_tray(self):
         labels = {
             IDLE: ("Start recording", "audio-input-microphone", "Dikte: ready"),
             RECORDING: ("Stop and transcribe", "media-record", "Dikte: recording"),
             BUSY: ("Working…", "view-refresh", "Dikte: working"),
         }
-        label, icon, tip = labels[state]
+        label, icon, tip = labels[self.state]
         self.toggle_action.setText(t(label))
-        self.toggle_action.setEnabled(state != BUSY)
-        self.cancel_action.setEnabled(state == RECORDING)
+        self.toggle_action.setEnabled(self.state != BUSY)
+        self.cancel_action.setEnabled(self.state == RECORDING)
+
+        meeting_labels = {
+            M_IDLE: "Record a meeting",
+            M_RECORDING: "End the meeting and write it up",
+            M_WORKING: "Writing the meeting up…",
+        }
+        self.meeting_action.setText(t(meeting_labels[self.meeting_state]))
+        self.meeting_action.setEnabled(self.meeting_state != M_WORKING)
+        self.meeting_cancel_action.setEnabled(self.meeting_state == M_RECORDING)
+
+        # Dictation owns the icon while it is doing something, because it is the
+        # one you are waiting on; otherwise the meeting gets to speak.
+        if self.state == IDLE and self.meeting_state != M_IDLE:
+            if self.meeting_state == M_RECORDING:
+                icon, tip = "media-record", t("Dikte: in a meeting")
+            else:
+                icon = "view-refresh"
+                tip = self.meeting_message or t("Dikte: writing the meeting up")
+            self._set_icon(icon)
+            self.tray.setToolTip(tip)
+            return
         self._set_icon(icon)
         self.tray.setToolTip(t(tip))
 
@@ -136,20 +205,29 @@ class Dikte:
 
     def toggle(self):
         """A toggle from outside this process: the KDE shortcut, or the CLI."""
+        self._external("toggle", self._toggle)
+
+    def toggle_meeting(self):
+        self._external("meeting", self._toggle_meeting)
+
+    def _external(self, name, handler):
         # The built-in listener sees the key press the instant it happens, so a
         # toggle arriving right behind one is the KDE shortcut catching up on
         # that same press. Its lateness is also the proof we were waiting for
         # that the shortcut is live, which leaves the listener with nothing to
         # do but double every press.
-        if (self.evdev.running and self.last_evdev.isValid()
-                and self.last_evdev.elapsed() < ECHO_MS):
+        timer = self.last_evdev.get(name)
+        if self.evdev.running and timer is not None and timer.elapsed() < ECHO_MS:
             self._retire_listener()
             return
-        self._toggle()
+        handler()
 
-    def _on_evdev(self):
-        self.last_evdev.restart()
-        self._toggle()
+    def _on_evdev(self, name):
+        timer = self.last_evdev.get(name)
+        if timer is None:
+            timer = self.last_evdev[name] = QElapsedTimer()
+        timer.restart()
+        (self._toggle_meeting if name == "meeting" else self._toggle)()
 
     def _retire_listener(self):
         self.evdev.stop()
@@ -206,6 +284,135 @@ class Dikte:
         if seconds >= self.conf["max_seconds"]:
             self.stop()
 
+    # ---- meetings ---------------------------------------------------------
+
+    def _toggle_meeting(self):
+        if self.meeting_state == M_IDLE:
+            self.start_meeting()
+        elif self.meeting_state == M_RECORDING:
+            self.stop_meeting()
+
+    def start_meeting(self):
+        if self.meeting_state != M_IDLE:
+            return
+        base = meeting.new_base()
+        _, wav_path = cfg.meeting_paths(base)
+        self.meeting_recorder.start(
+            str(wav_path),
+            self.conf["meeting_mic_target"] or self.conf["mic_target"],
+            self.conf["meeting_system_target"],
+            self.conf["meeting_max_seconds"],
+        )
+        if not self.meeting_recorder.active:
+            return  # start() has already said what went wrong
+        self.meeting_base = base
+        self.meeting_elapsed.restart()
+        self.meeting_ticker.start()
+        self.overlay.show_meeting()
+        QTimer.singleShot(PEEK_MS, self._conceal_meeting_overlay)
+        self._set_meeting_state(M_RECORDING)
+
+    def stop_meeting(self):
+        if self.meeting_state != M_RECORDING:
+            return
+        self.meeting_ticker.stop()
+        self._set_meeting_state(M_WORKING)
+        self.overlay.show_busy(t("Ending the meeting…"))
+        self.meeting_recorder.stop()
+
+    def cancel_meeting(self):
+        if self.meeting_state != M_RECORDING:
+            return
+        self.meeting_ticker.stop()
+        self.meeting_recorder.cancel()
+        if self.overlay.state == "meeting":
+            self.overlay.dismiss()
+        self._set_meeting_state(M_IDLE)
+
+    def _conceal_meeting_overlay(self):
+        if self.overlay.state == "meeting":
+            self.overlay.dismiss()
+
+    def _on_meeting_levels(self, mine, theirs):
+        self.overlay.push_levels(mine, theirs)
+
+    def _meeting_tick(self):
+        seconds = self.meeting_elapsed.elapsed() / 1000.0
+        if self.overlay.state == "meeting":
+            self.overlay.set_seconds(seconds)
+        if self.state == IDLE:
+            self.tray.setToolTip(
+                t("Dikte: in a meeting ({time})", time=_clock(seconds))
+            )
+        if seconds >= self.conf["meeting_max_seconds"]:
+            self.stop_meeting()
+
+    def _on_meeting_recorded(self, path, duration):
+        entry = meeting.new_entry(self.meeting_base, duration)
+        try:
+            cfg.save_meeting(entry)
+        except OSError as exc:
+            self._on_meeting_failed(entry["base"], str(exc))
+            return
+        # On the way out there is no time to write anything up; the recording is
+        # on disk and listed, and the Minutes tab can pick it up next time.
+        if self._quitting:
+            return
+        if not self.meetings.run(entry):
+            self._set_meeting_state(M_IDLE)
+            self.tray.showMessage(
+                "Dikte",
+                t("Recording saved. The previous meeting is still being written "
+                  "up, so start this one from Settings → Minutes when it is done."),
+                QSystemTrayIcon.MessageIcon.Information, 10000,
+            )
+            return
+        self.overlay.show_done(t("Meeting recorded, writing it up…"), 4000)
+
+    def _on_meeting_progress(self, _base, message):
+        self.meeting_message = message
+        if self.state == IDLE and self.meeting_state == M_WORKING:
+            self.tray.setToolTip(message)
+
+    def _on_meeting_finished(self, base, title):
+        self._set_meeting_state(M_IDLE)
+        doc_path, _ = cfg.meeting_paths(base)
+        self.overlay.show_done(t("Meeting written up: {title}", title=title), 5000)
+        self.tray.showMessage(
+            t("Dikte: the meeting is written up"), f"{title}\n{doc_path}",
+            QSystemTrayIcon.MessageIcon.Information, 10000,
+        )
+
+    def _on_meeting_failed(self, _base, error):
+        self._set_meeting_state(M_IDLE)
+        first_line = error.strip().splitlines()[0]
+        self.overlay.show_error(t("Meeting failed: {error}", error=first_line))
+        self.tray.showMessage(
+            t("Dikte: the meeting could not be written up"),
+            t("{error}\n\nThe recording has been kept. Settings → Minutes can "
+              "try again.", error=error),
+            QSystemTrayIcon.MessageIcon.Warning, 12000,
+        )
+
+    def _on_meeting_error(self, message):
+        """The recorder itself could not run."""
+        self.meeting_ticker.stop()
+        if self.overlay.state == "meeting":
+            self.overlay.dismiss()
+        self._set_meeting_state(M_IDLE)
+        self._on_error(message)
+
+    def _on_meeting_died(self):
+        if self.meeting_state != M_RECORDING:
+            return
+        self.tray.showMessage(
+            "Dikte",
+            t("The recording stopped on its own; the sound device may have gone "
+              "away. Keeping what was captured."),
+            QSystemTrayIcon.MessageIcon.Warning, 10000,
+        )
+        self.stop_meeting()
+
     def _on_recorded(self, wav_path, duration, rms_values):
         self.pipeline.run(wav_path, duration, rms_values)
 
@@ -240,7 +447,9 @@ class Dikte:
 
     def open_settings(self):
         if self.settings_window is None:
-            self.settings_window = SettingsWindow(self.conf, launch_command())
+            self.settings_window = SettingsWindow(
+                self.conf, launch_command(), meeting_command(), self.meetings
+            )
             self.settings_window.applied.connect(self._apply_settings)
             self.settings_window.finished.connect(self._settings_closed)
         self.settings_window.show()
@@ -254,9 +463,10 @@ class Dikte:
     def _apply_settings(self):
         self.overlay.corner = self.conf["overlay_corner"]
         self._build_tray()
-        self._set_state(self.state)
+        self._refresh_tray()
         if self.conf["evdev_hotkey"]:
-            self.evdev.start(self.conf["shortcut"])
+            self.evdev.start({"toggle": self.conf["shortcut"],
+                              "meeting": self.conf["meeting_shortcut"]})
         else:
             self.evdev.stop()
 
@@ -270,16 +480,33 @@ class Dikte:
         os.execv(sys.executable, [sys.executable, script])
 
     def shutdown(self):
+        self._quitting = True
         self.evdev.stop()
         if self.state == RECORDING:
             self.recorder.cancel()
+        # A meeting in progress is closed properly rather than thrown away: the
+        # WAV ends up valid and listed, ready to be written up after the restart.
+        if self.meeting_state == M_RECORDING:
+            self.meeting_ticker.stop()
+            self.meeting_recorder.stop()
         self.overlay.dismiss()
         self.tray.hide()
+
+
+def _clock(seconds):
+    minutes, secs = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    return (f"{hours}:{minutes:02d}:{secs:02d}" if hours
+            else f"{minutes}:{secs:02d}")
 
 
 def launch_command():
     """The command the KDE shortcut will run."""
     return f"{sys.executable} {os.path.realpath(__file__)} toggle"
+
+
+def meeting_command():
+    return f"{sys.executable} {os.path.realpath(__file__)} meeting"
 
 
 def send_command(command, timeout=800):
@@ -300,7 +527,8 @@ def main():
     command = args[0] if args else ""
 
     if command and command not in ("toggle", "cancel", "settings", "restart",
-                                   "quit", "start", "stop"):
+                                   "quit", "start", "stop", "meeting",
+                                   "meeting-cancel"):
         print(__doc__)
         return 2
 
@@ -313,7 +541,7 @@ def main():
     if send_command(command or "settings"):
         return 0
 
-    if command in ("cancel", "quit", "stop", "restart"):
+    if command in ("cancel", "quit", "stop", "restart", "meeting-cancel"):
         return 0
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -341,6 +569,8 @@ def main():
                 "start": dikte.start,
                 "stop": dikte.stop,
                 "cancel": dikte.cancel,
+                "meeting": dikte.toggle_meeting,
+                "meeting-cancel": dikte.cancel_meeting,
                 "settings": dikte.open_settings,
                 "restart": dikte.restart,
                 "quit": app.quit,
@@ -360,6 +590,8 @@ def main():
         dikte.open_settings()
     elif command == "toggle":
         QTimer.singleShot(0, dikte.toggle)
+    elif command == "meeting":
+        QTimer.singleShot(0, dikte.toggle_meeting)
 
     return app.exec()
 

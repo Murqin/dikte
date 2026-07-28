@@ -21,9 +21,11 @@ BUSY = QColor(120, 170, 255)
 OK = QColor(80, 205, 140)
 ERR = QColor(240, 100, 90)
 WARN = QColor(240, 180, 80)
+THEM = QColor(110, 190, 255)   # the other side of a meeting
 
-STATE_COLORS = {"recording": REC, "busy": BUSY, "done": OK,
+STATE_COLORS = {"recording": REC, "meeting": REC, "busy": BUSY, "done": OK,
                 "warning": WARN, "error": ERR}
+LIVE = ("recording", "meeting")
 
 
 class Overlay(QWidget):
@@ -33,6 +35,7 @@ class Overlay(QWidget):
         self.state = "idle"
         self.message = ""
         self.levels = [0.0] * BARS
+        self.levels2 = [0.0] * BARS   # the other side, while a meeting records
         self.seconds = 0.0
         self._phase = 0.0
         self._concealed = True
@@ -68,6 +71,16 @@ class Overlay(QWidget):
         self._hide_timer.stop()
         self._appear()
 
+    def show_meeting(self):
+        """Both channels at once: your voice up, the other side down."""
+        self.state = "meeting"
+        self.message = ""
+        self.seconds = 0.0
+        self.levels = [0.0] * BARS
+        self.levels2 = [0.0] * BARS
+        self._hide_timer.stop()
+        self._appear()
+
     def show_busy(self, message):
         self.state = "busy"
         self.message = message
@@ -99,6 +112,10 @@ class Overlay(QWidget):
 
     def push_level(self, level):
         self.levels = self.levels[1:] + [level]
+
+    def push_levels(self, mine, theirs):
+        self.levels = self.levels[1:] + [mine]
+        self.levels2 = self.levels2[1:] + [theirs]
 
     def set_seconds(self, seconds):
         self.seconds = seconds
@@ -133,8 +150,9 @@ class Overlay(QWidget):
         self.repaint()
 
     def _resize_to_content(self):
-        if self.state == "recording":
-            width = MIN_WIDTH
+        if self.state in LIVE:
+            # A meeting runs long enough to need an hours field.
+            width = MIN_WIDTH + (24 if self.state == "meeting" else 0)
         else:
             metrics = QFontMetrics(self._label_font())
             width = max(MIN_WIDTH, min(MAX_WIDTH, metrics.horizontalAdvance(self.message) + 76))
@@ -152,9 +170,11 @@ class Overlay(QWidget):
 
     def _tick(self):
         self._phase += 0.12
-        if self.state == "recording":
+        if self.state in LIVE:
             # keep the ribbon moving even through a pause in speech
             self.levels = self.levels[1:] + [self.levels[-1] * 0.72]
+        if self.state == "meeting":
+            self.levels2 = self.levels2[1:] + [self.levels2[-1] * 0.72]
         self.update()
 
     def _label_font(self):
@@ -181,7 +201,7 @@ class Overlay(QWidget):
         accent = STATE_COLORS.get(self.state, MUTED)
         self._draw_indicator(painter, accent)
 
-        if self.state == "recording":
+        if self.state in LIVE:
             self._draw_waveform(painter)
             self._draw_time(painter)
         else:
@@ -190,7 +210,7 @@ class Overlay(QWidget):
     def _draw_indicator(self, painter, accent):
         cx, cy = 26.0, self.height() / 2
         painter.setPen(Qt.PenStyle.NoPen)
-        if self.state == "recording":
+        if self.state in LIVE:
             pulse = 0.62 + 0.38 * (0.5 + 0.5 * math.sin(self._phase * 1.6))
             glow = QColor(accent)
             glow.setAlphaF(0.22 * pulse)
@@ -229,21 +249,54 @@ class Overlay(QWidget):
             painter.drawLine(QPointF(cx - 6, cy - 6), QPointF(cx + 6, cy + 6))
             painter.drawLine(QPointF(cx + 6, cy - 6), QPointF(cx - 6, cy + 6))
 
-    def _draw_waveform(self, painter):
-        left, right = 46.0, self.width() - 58.0
-        span = right - left
+    def _bars(self):
+        """(x of the first bar, bar width, distance between two bars)."""
+        # A meeting's clock carries an hours field, so it needs more room and
+        # the ribbon has to stop earlier.
+        left = 46.0
+        right = self.width() - (74.0 if self.state == "meeting" else 58.0)
         bar_w = 2.6
-        gap = (span - BARS * bar_w) / max(1, BARS - 1)
+        gap = (right - left - BARS * bar_w) / max(1, BARS - 1)
+        return left, bar_w, bar_w + gap
+
+    @staticmethod
+    def _bar_colour(shaped, accent):
+        color = QColor(accent if shaped > 0.04 else MUTED)
+        color.setAlphaF(0.35 + 0.65 * min(1.0, shaped * 2.2))
+        return color
+
+    def _draw_waveform(self, painter):
+        if self.state == "meeting":
+            self._draw_dual_waveform(painter)
+            return
+        left, bar_w, step = self._bars()
         mid = self.height() / 2
         painter.setPen(Qt.PenStyle.NoPen)
         for i, level in enumerate(self.levels):
             shaped = min(1.0, level ** 0.55)
             h = 3.0 + shaped * 26.0
-            x = left + i * (bar_w + gap)
-            color = QColor(REC if shaped > 0.04 else MUTED)
-            color.setAlphaF(0.35 + 0.65 * min(1.0, shaped * 2.2))
-            painter.setBrush(color)
-            painter.drawRoundedRect(QRectF(x, mid - h / 2, bar_w, h), 1.3, 1.3)
+            painter.setBrush(self._bar_colour(shaped, REC))
+            painter.drawRoundedRect(
+                QRectF(left + i * step, mid - h / 2, bar_w, h), 1.3, 1.3
+            )
+
+    def _draw_dual_waveform(self, painter):
+        """Your microphone above the line, what the speakers play below it.
+
+        Seeing both move is the whole check that a meeting is being captured
+        properly: one silent half means that side is not reaching the recording.
+        """
+        left, bar_w, step = self._bars()
+        mid = self.height() / 2
+        painter.setPen(Qt.PenStyle.NoPen)
+        for i, (mine, theirs) in enumerate(zip(self.levels, self.levels2)):
+            x = left + i * step
+            for level, accent, up in ((mine, REC, True), (theirs, THEM, False)):
+                shaped = min(1.0, level ** 0.55)
+                h = 2.0 + shaped * 12.0
+                y = mid - 1.5 - h if up else mid + 1.5
+                painter.setBrush(self._bar_colour(shaped, accent))
+                painter.drawRoundedRect(QRectF(x, y, bar_w, h), 1.3, 1.3)
 
     def _draw_time(self, painter):
         font = QFont(self.font())
@@ -252,10 +305,13 @@ class Overlay(QWidget):
         painter.setFont(font)
         painter.setPen(MUTED)
         mins, secs = divmod(int(self.seconds), 60)
+        hours, mins = divmod(mins, 60)
+        text = f"{hours}:{mins:02d}:{secs:02d}" if hours else f"{mins}:{secs:02d}"
+        width = 62 if hours else 44
         painter.drawText(
-            QRectF(self.width() - 56, 0, 44, self.height()),
+            QRectF(self.width() - width - 12, 0, width, self.height()),
             int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight),
-            f"{mins}:{secs:02d}",
+            text,
         )
 
     def _draw_message(self, painter):

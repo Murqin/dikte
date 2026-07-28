@@ -75,7 +75,7 @@ class FileTranscriber(QObject):
             wav_path = _to_wav(path, workdir)
             self._check()
 
-            chunks = _split(wav_path, workdir)
+            chunks = split_wav(wav_path, workdir)
             if len(chunks) > 1:
                 self.progress.emit(t("Splitting into {count} chunks…", count=len(chunks)))
 
@@ -128,7 +128,7 @@ class FileTranscriber(QObject):
         conf = self.conf
         prompt = conf.cleanup_prompt(with_timestamps=timestamps)
         out = []
-        for block in _split_text(text, timestamps):
+        for block in split_text(text, timestamps):
             self._check()
             out.append(api.cleanup(
                 block,
@@ -214,7 +214,7 @@ def _to_wav(path, workdir):
     return out
 
 
-def _split(wav_path, workdir):
+def split_wav(wav_path, workdir):
     """[(chunk path, offset in seconds)], a single entry for short files."""
     with contextlib.closing(wave.open(wav_path, "rb")) as src:
         rate = src.getframerate()
@@ -240,7 +240,7 @@ def _split(wav_path, workdir):
         return chunks
 
 
-def _split_text(text, timestamps):
+def split_text(text, timestamps):
     """Break long text into cleanup-sized blocks, never mid-line."""
     if len(text) <= CLEANUP_CHUNK_CHARS:
         return [text]
