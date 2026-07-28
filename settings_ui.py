@@ -52,15 +52,30 @@ MEETING_MODELS = [
     "google/gemini-3.5-flash", "google/gemini-3.1-pro-preview",
     "anthropic/claude-sonnet-5", "openai/gpt-5.4", "x-ai/grok-4.5",
 ]
+ASSISTANT_PROVIDERS = [
+    ("Claude Code", "claude"), ("Codex", "codex"), ("OpenRouter", "openrouter"),
+]
 # Aliases resolve to the newest model of that name, so they age better than an
 # id does; a full id can be typed in when a particular one is wanted.
 ASSISTANT_MODELS = ["sonnet", "opus", "haiku", "fable"]
+CODEX_MODELS = ["gpt-5.4-codex", "gpt-5.4", "o4-mini"]
+# Starting points only; the box is editable and OpenRouter has hundreds.
+ASSISTANT_OR_MODELS = [
+    "google/gemini-3.5-flash", "anthropic/claude-sonnet-5", "openai/gpt-5.4",
+    "x-ai/grok-4.5", "google/gemini-3.1-pro-preview",
+]
 # What Claude Code may do without being able to ask. It cannot ask: there is no
 # window to answer in, so a mode that would have prompted denies instead.
 PERMISSION_MODES = [
     ("Decide on its own, with the safety checks on", "auto"),
     ("Allow everything", "bypassPermissions"),
     ("Only what needs no permission", "manual"),
+]
+# Codex confines the commands it runs instead of asking about them.
+CODEX_SANDBOXES = [
+    ("Read anything, write in the working directory", "workspace-write"),
+    ("Read only", "read-only"),
+    ("No sandbox at all", "danger-full-access"),
 ]
 MEETING_STATUS = {
     "recorded": "waiting to be written up",
@@ -323,11 +338,11 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(page)
         intro = QLabel(t(
             "This shortcut records the same way dictation does, but the "
-            "transcript is not what gets pasted. It goes to Claude Code as a "
+            "transcript is not what gets pasted. It goes to an agent as a "
             "command, and what comes back is pasted instead: the answer to a "
-            "question, or a sentence saying what was done. It runs as the "
-            "session you would have opened yourself, with your skills, your "
-            "connected services and your account."
+            "question, or a sentence saying what was done. Claude Code and "
+            "Codex run as the session you would have opened yourself, with your "
+            "skills, your connected services and your account."
         ))
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -350,20 +365,13 @@ class SettingsWindow(QDialog):
         self.assistant_shortcut_status.setWordWrap(True)
         how_form.addRow(self.assistant_shortcut_status)
 
-        self.assistant_model = QComboBox()
-        self.assistant_model.setEditable(True)
-        self.assistant_model.addItems(ASSISTANT_MODELS)
-        self.assistant_model.setToolTip(t(
-            "A name like “sonnet” always means the newest model of that line. "
-            "Opus thinks harder and answers slower, which is felt here more "
-            "than anywhere else: you are standing in front of the screen."
-        ))
-        how_form.addRow(t("Model"), self.assistant_model)
-
-        self.assistant_permission = QComboBox()
-        for label, value in PERMISSION_MODES:
-            self.assistant_permission.addItem(t(label), value)
-        how_form.addRow(t("Permissions"), self.assistant_permission)
+        self.assistant_provider = QComboBox()
+        for label, value in ASSISTANT_PROVIDERS:
+            self.assistant_provider.addItem(t(label), value)
+        self.assistant_provider.currentIndexChanged.connect(
+            self._assistant_provider_changed
+        )
+        how_form.addRow(t("Runs on"), self.assistant_provider)
 
         self.assistant_dir = QLineEdit()
         self.assistant_dir.setPlaceholderText(os.path.expanduser("~"))
@@ -388,6 +396,57 @@ class SettingsWindow(QDialog):
         ))
         how_form.addRow(t("Give up after"), self.assistant_timeout)
         layout.addWidget(how)
+
+        # One box per provider, only the chosen one on screen: they have nothing
+        # in common past the model, and three sets of half-relevant fields would
+        # be worse than none.
+        self.claude_box = QGroupBox(t("Claude Code"))
+        claude_form = QFormLayout(self.claude_box)
+        self.assistant_model = QComboBox()
+        self.assistant_model.setEditable(True)
+        self.assistant_model.addItems(ASSISTANT_MODELS)
+        self.assistant_model.setToolTip(t(
+            "A name like “sonnet” always means the newest model of that line. "
+            "Opus thinks harder and answers slower, which is felt here more "
+            "than anywhere else: you are standing in front of the screen."
+        ))
+        claude_form.addRow(t("Model"), self.assistant_model)
+        self.assistant_permission = QComboBox()
+        for label, value in PERMISSION_MODES:
+            self.assistant_permission.addItem(t(label), value)
+        claude_form.addRow(t("Permissions"), self.assistant_permission)
+        layout.addWidget(self.claude_box)
+
+        self.codex_box = QGroupBox(t("Codex"))
+        codex_form = QFormLayout(self.codex_box)
+        self.assistant_codex_model = QComboBox()
+        self.assistant_codex_model.setEditable(True)
+        self.assistant_codex_model.addItem(t("Codex's own default"), "")
+        for name in CODEX_MODELS:
+            self.assistant_codex_model.addItem(name, name)
+        codex_form.addRow(t("Model"), self.assistant_codex_model)
+        self.assistant_codex_sandbox = QComboBox()
+        for label, value in CODEX_SANDBOXES:
+            self.assistant_codex_sandbox.addItem(t(label), value)
+        codex_form.addRow(t("Sandbox"), self.assistant_codex_sandbox)
+        layout.addWidget(self.codex_box)
+
+        self.openrouter_box = QGroupBox("OpenRouter")
+        or_form = QFormLayout(self.openrouter_box)
+        self.assistant_openrouter_model = QComboBox()
+        self.assistant_openrouter_model.setEditable(True)
+        self.assistant_openrouter_model.addItems(ASSISTANT_OR_MODELS)
+        or_form.addRow(t("Model"), self.assistant_openrouter_model)
+        or_note = QLabel(t(
+            "A plain question and a plain answer, over the OpenRouter key you "
+            "already have. It runs no commands, opens no files and reaches none "
+            "of your services, so it can tell you what the capital of Peru is "
+            "but not what is in your calendar. Working directory and permissions "
+            "above mean nothing here."
+        ))
+        or_note.setWordWrap(True)
+        or_form.addRow(or_note)
+        layout.addWidget(self.openrouter_box)
 
         thread = QGroupBox(t("The conversation"))
         thread_form = QFormLayout(thread)
@@ -426,7 +485,7 @@ class SettingsWindow(QDialog):
         layout.addWidget(answer)
 
         prompt_label = QLabel(t(
-            "Told to Claude alongside every command, on top of whatever your "
+            "Told to the agent alongside every command, on top of whatever your "
             "own configuration already says."
         ))
         prompt_label.setWordWrap(True)
@@ -820,8 +879,13 @@ class SettingsWindow(QDialog):
         self.transcribe_prompt.setPlainText(conf["transcribe_prompt"])
 
         self.assistant_shortcut.setText(conf["assistant_shortcut"])
+        self._select_data(self.assistant_provider, conf["assistant_provider"])
         self.assistant_model.setCurrentText(conf["assistant_model"])
         self._select_data(self.assistant_permission, conf["assistant_permission_mode"])
+        self.assistant_codex_model.setCurrentText(conf["assistant_codex_model"])
+        self._select_data(self.assistant_codex_sandbox, conf["assistant_codex_sandbox"])
+        self.assistant_openrouter_model.setCurrentText(conf["assistant_openrouter_model"])
+        self._assistant_provider_changed()  # selecting index 0 fires no signal
         self.assistant_dir.setText(conf["assistant_dir"])
         self.assistant_timeout.setValue(int(conf["assistant_timeout"]))
         self.assistant_session_minutes.setValue(int(conf["assistant_session_minutes"]))
@@ -899,10 +963,23 @@ class SettingsWindow(QDialog):
         conf["transcribe_prompt"] = self.transcribe_prompt.toPlainText().strip()
 
         conf["assistant_shortcut"] = self.assistant_shortcut.text().strip()
+        conf["assistant_provider"] = self.assistant_provider.currentData() or "claude"
         conf["assistant_model"] = (self.assistant_model.currentText().strip()
                                    or cfg.DEFAULTS["assistant_model"])
         conf["assistant_permission_mode"] = (self.assistant_permission.currentData()
                                              or "auto")
+        # The editable box shows a label for "no choice", which must not be
+        # stored as if it were a model id.
+        codex_model = self.assistant_codex_model.currentText().strip()
+        conf["assistant_codex_model"] = (
+            "" if codex_model == t("Codex's own default") else codex_model
+        )
+        conf["assistant_codex_sandbox"] = (self.assistant_codex_sandbox.currentData()
+                                           or "workspace-write")
+        conf["assistant_openrouter_model"] = (
+            self.assistant_openrouter_model.currentText().strip()
+            or cfg.DEFAULTS["assistant_openrouter_model"]
+        )
         conf["assistant_dir"] = self.assistant_dir.text().strip()
         conf["assistant_timeout"] = self.assistant_timeout.value()
         conf["assistant_session_minutes"] = self.assistant_session_minutes.value()
@@ -1242,13 +1319,28 @@ class SettingsWindow(QDialog):
             else t("No KDE shortcut installed. The tray menu asks Claude too.")
         )
 
+    def _assistant_provider_changed(self):
+        provider = self.assistant_provider.currentData() or "claude"
+        self.claude_box.setVisible(provider == "claude")
+        self.codex_box.setVisible(provider == "codex")
+        self.openrouter_box.setVisible(provider == "openrouter")
+        self._refresh_assistant_status()
+
     def _refresh_assistant_status(self):
-        found = shutil.which("claude")
-        self.assistant_found.setText(
-            t("Found: {path}", path=found) if found else
-            t("claude is not on your PATH, so this cannot run yet. Install "
-              "Claude Code first.")
-        )
+        provider = self.assistant_provider.currentData() or "claude"
+        binary = assistant.executable(provider)
+        found = shutil.which(binary) if binary else ""
+        if not binary:
+            self.assistant_found.setText(
+                t("Needs no program installed, only the OpenRouter key.")
+            )
+        elif found:
+            self.assistant_found.setText(t("Found: {path}", path=found))
+        else:
+            self.assistant_found.setText(t(
+                "{binary} is not on your PATH, so this cannot run yet. Install "
+                "it, or pick another one above.", binary=binary,
+            ))
         age = assistant.session_age()
         if age is None:
             self.assistant_session_status.setText(t("No conversation going."))

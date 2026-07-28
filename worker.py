@@ -19,6 +19,7 @@ import api
 import assistant
 import audio
 import config as cfg
+import i18n
 import paste
 import vad
 from i18n import t
@@ -119,7 +120,8 @@ class Pipeline(QObject):
             question = ""
             if ask:
                 question = text
-                self.stage.emit(t("Asking Claude…"))
+                self.stage.emit(t("Asking {name}…", name=i18n.name(
+                    assistant.display_name(conf), "dative")))
                 text, denied = assistant.ask(
                     question, conf,
                     on_stage=self.stage.emit,

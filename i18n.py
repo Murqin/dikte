@@ -32,6 +32,22 @@ def t(text, **kwargs):
     return out.format(**kwargs) if kwargs else out
 
 
+# Turkish suffixes follow the vowels of the word they attach to, so "Claude'a"
+# but "Codex'e". A name dropped into a sentence through t() cannot be inflected
+# by the sentence, so it arrives already inflected. English takes the name as it
+# is and puts the preposition in the sentence, where it belongs.
+_TR_CASES = {
+    "dative": {"Claude": "Claude'a", "Codex": "Codex'e", "OpenRouter": "OpenRouter'a"},
+    "accusative": {"Claude": "Claude'u", "Codex": "Codex'i", "OpenRouter": "OpenRouter'ı"},
+}
+
+
+def name(text, case=""):
+    if _lang != "tr" or not case:
+        return text
+    return _TR_CASES.get(case, {}).get(text, text)
+
+
 TR = {
     # --- tray ---------------------------------------------------------
     "Start recording": "Kaydı başlat",
@@ -288,22 +304,20 @@ TR = {
         "Geçmişin tamamı silinsin mi? Bu geri alınamaz.",
 
     # --- asking Claude Code -------------------------------------------------
-    "Ask Claude": "Claude'a sor",
-    "Stop and ask Claude": "Kaydı bitir ve Claude'a sor",
+    "Ask {name}": "{name} sor",
+    "Stop and ask {name}": "Kaydı bitir ve {name} sor",
     "Start a new conversation": "Yeni konuşma başlat",
     "Start a new conversation now": "Şimdi yeni konuşma başlat",
-    "Stop Claude": "Claude'u durdur",
+    "Stop {name}": "{name} durdur",
     "Stopping…": "Durduruluyor…",
     "Stopped.": "Durduruldu.",
-    "Claude starts fresh next time.": "Claude bir sonrakine sıfırdan başlayacak.",
-    "Dikte: talking to Claude": "Dikte: Claude ile konuşuyor",
-    "Dikte: recording for Claude": "Dikte: Claude için kaydediyor",
-    "Asking Claude…": "Claude'a soruluyor…",
-    "Claude: {preview}": "Claude: {preview}",
-    "Claude answered, but: {error}": "Claude cevapladı, ama: {error}",
-    "Dikte: Claude could not do all of it": "Dikte: Claude her şeyi yapamadı",
-    "Claude was not allowed to use: {tools}":
-        "Claude şunları kullanamadı: {tools}",
+    "{name} starts fresh next time.": "{name} bir sonrakine sıfırdan başlayacak.",
+    "Dikte: talking to Claude": "Dikte: ajanla konuşuyor",
+    "Dikte: recording for Claude": "Dikte: ajan için kaydediyor",
+    "Asking {name}…": "{name} soruluyor…",
+    "{name}: {preview}": "{name}: {preview}",
+    "{name} answered, but: {error}": "{name} cevapladı, ama: {error}",
+    "Dikte: {name} could not do all of it": "Dikte: {name} her şeyi yapamadı",
     "Running a command…": "Komut çalıştırıyor…",
     "Reading…": "Okuyor…",
     "Looking through files…": "Dosyalara bakıyor…",
@@ -315,36 +329,63 @@ TR = {
     "Handing it to a subagent…": "Alt ajana devrediyor…",
     "Planning…": "Planlıyor…",
     "Using {name}…": "{name} kullanıyor…",
-    "claude not found. Install Claude Code and make sure `claude` is on your PATH.":
-        "claude bulunamadı. Claude Code'u kur ve `claude` komutunun PATH'te "
-        "olduğundan emin ol.",
-    "Could not run claude: {error}": "claude çalıştırılamadı: {error}",
-    "claude exited with code {code}.": "claude {code} koduyla çıktı.",
-    "Claude did not finish within {seconds} seconds.":
-        "Claude {seconds} saniye içinde bitirmedi.",
+    "Thinking…": "Düşünüyor…",
+    "{binary} not found. Install it, or pick another provider under "
+    "Settings → Claude.":
+        "{binary} bulunamadı. Kur ya da Ayarlar → Claude sekmesinden başka bir "
+        "sağlayıcı seç.",
+    "Could not run {binary}: {error}": "{binary} çalıştırılamadı: {error}",
+    "{service} exited with code {code}.": "{service} {code} koduyla çıktı.",
+    "It did not finish within {seconds} seconds.":
+        "{seconds} saniye içinde bitmedi.",
     "Claude ended with an error.": "Claude bir hatayla sonlandı.",
-    "Claude answered with nothing.": "Claude boş cevap verdi.",
+    "Codex ended with an error.": "Codex bir hatayla sonlandı.",
+    "{service} answered with nothing.": "{service} boş cevap verdi.",
+    "It was not allowed to use: {tools}": "Şunları kullanmasına izin yoktu: {tools}",
+    "The model returned an empty reply.": "Model boş cevap döndürdü.",
 
     # --- settings: Claude ---------------------------------------------------
     "Claude": "Claude",
     "This shortcut records the same way dictation does, but the transcript is "
-    "not what gets pasted. It goes to Claude Code as a command, and what comes "
+    "not what gets pasted. It goes to an agent as a command, and what comes "
     "back is pasted instead: the answer to a question, or a sentence saying "
-    "what was done. It runs as the session you would have opened yourself, "
-    "with your skills, your connected services and your account.":
+    "what was done. Claude Code and Codex run as the session you would have "
+    "opened yourself, with your skills, your connected services and your "
+    "account.":
         "Bu kısayol dikte ile aynı şekilde kaydeder, ama yapıştırılan şey "
-        "transkript değildir. Transkript Claude Code'a komut olarak gider ve "
-        "yerine oradan döneni yapıştırılır: bir sorunun cevabı ya da ne "
-        "yapıldığını söyleyen bir cümle. Kendi açacağın oturumun aynısı olarak "
-        "çalışır: skill'lerinle, bağlı servislerinle ve kendi hesabınla.",
+        "transkript değildir. Transkript bir ajana komut olarak gider ve yerine "
+        "oradan döneni yapıştırılır: bir sorunun cevabı ya da ne yapıldığını "
+        "söyleyen bir cümle. Claude Code ve Codex, kendi açacağın oturumun "
+        "aynısı olarak çalışır: skill'lerinle, bağlı servislerinle ve kendi "
+        "hesabınla.",
     "How it runs": "Nasıl çalışıyor",
+    "Runs on": "Şunun üstünde çalışır",
+    "Claude Code": "Claude Code",
+    "Codex": "Codex",
+    "Codex's own default": "Codex'in kendi varsayılanı",
+    "Sandbox": "Kum havuzu",
+    "Read anything, write in the working directory":
+        "Her şeyi okusun, çalışma dizinine yazsın",
+    "Read only": "Yalnızca okusun",
+    "No sandbox at all": "Kum havuzu hiç olmasın",
+    "A plain question and a plain answer, over the OpenRouter key you already "
+    "have. It runs no commands, opens no files and reaches none of your "
+    "services, so it can tell you what the capital of Peru is but not what is "
+    "in your calendar. Working directory and permissions above mean nothing "
+    "here.":
+        "Elindeki OpenRouter anahtarı üzerinden düz bir soru ve düz bir cevap. "
+        "Komut çalıştırmaz, dosya açmaz, servislerinin hiçbirine erişmez; yani "
+        "Peru'nun başkentini söyler ama takviminde ne olduğunu söyleyemez. "
+        "Yukarıdaki çalışma dizini ve izinler burada bir şey ifade etmez.",
+    "Needs no program installed, only the OpenRouter key.":
+        "Kurulu bir programa değil, yalnızca OpenRouter anahtarına ihtiyaç duyar.",
+    "{binary} is not on your PATH, so this cannot run yet. Install it, or pick "
+    "another one above.":
+        "{binary} PATH'te değil, dolayısıyla bu henüz çalışamaz. Kur ya da "
+        "yukarıdan başka birini seç.",
     "The conversation": "Konuşma",
     "The answer": "Cevap",
     "Found: {path}": "Bulundu: {path}",
-    "claude is not on your PATH, so this cannot run yet. Install Claude Code "
-    "first.":
-        "claude PATH'te değil, dolayısıyla bu henüz çalışamaz. Önce Claude "
-        "Code'u kur.",
     "No KDE shortcut installed. The tray menu asks Claude too.":
         "Kurulu KDE kısayolu yok. Tepsi menüsünden de sorulabilir.",
     "A name like “sonnet” always means the newest model of that line. Opus "
@@ -388,9 +429,9 @@ TR = {
     "and cleanup costs an API call and a second or two.":
         "Varsayılan olarak kapalı: Claude “eee” ve “hani”yi yardımsız da okur, "
         "temizlik ise bir API çağrısına ve bir iki saniyeye mal olur.",
-    "Told to Claude alongside every command, on top of whatever your own "
+    "Told to the agent alongside every command, on top of whatever your own "
     "configuration already says.":
-        "Her komutla birlikte Claude'a söylenir, kendi yapılandırmanın zaten "
+        "Her komutla birlikte ajana söylenir, kendi yapılandırmanın zaten "
         "söylediklerinin üstüne eklenir.",
     "  ·  asked Claude: {question}": "  ·  Claude'a soruldu: {question}",
 

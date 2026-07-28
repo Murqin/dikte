@@ -209,6 +209,38 @@ def cleanup(text, api_key, model, system_prompt, reasoning="",
     return content
 
 
+def chat(messages, api_key, model, system_prompt, base_url=OPENROUTER_URL,
+         timeout=180):
+    """A conversation, rather than one transcript rewritten.
+
+    The messages are the whole history and come back unchanged; the caller keeps
+    them, because there is no session on OpenRouter's side to resume.
+    """
+    if not api_key:
+        raise ApiError(t("{service} API key is empty. Add it in Settings.",
+                         service="OpenRouter"))
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system_prompt}] + list(messages),
+    }
+    try:
+        data = _request(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json.dumps(payload).encode("utf-8"),
+            _headers("openrouter", api_key, "application/json"),
+            timeout=timeout,
+        )
+    except ApiError as exc:
+        raise explain(exc, "OpenRouter") from None
+    choices = data.get("choices") or []
+    if not choices:
+        raise ApiError(_extract_error(json.dumps(data)))
+    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        raise ApiError(t("The model returned an empty reply."))
+    return content
+
+
 def _get_json(url, headers, timeout=20):
     req = urllib.request.Request(url, headers=headers)
     try:

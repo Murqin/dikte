@@ -313,10 +313,14 @@ DEFAULTS = {
     "meeting_keep_audio": False,    # a failed run keeps its audio regardless
     "meeting_shortcut": "",         # empty -> tray only
 
-    # --- asking Claude Code -----------------------------------------------
+    # --- speaking a command to an agent -------------------------------------
     "assistant_shortcut": "",       # empty -> tray only
-    "assistant_model": "sonnet",    # an alias, or a full model id
+    "assistant_provider": "claude",  # claude | codex | openrouter
+    "assistant_model": "sonnet",    # Claude Code: an alias, or a full model id
     "assistant_permission_mode": "auto",
+    "assistant_codex_model": "",    # empty -> whatever Codex is set to
+    "assistant_codex_sandbox": "workspace-write",
+    "assistant_openrouter_model": "google/gemini-3.5-flash",
     "assistant_dir": "",            # empty -> the home directory
     "assistant_prompt": "",         # empty -> language-specific default
     "assistant_cleanup": False,     # the model reads through filler words fine

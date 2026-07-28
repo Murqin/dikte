@@ -31,6 +31,7 @@ import assistant  # noqa: E402
 import audio  # noqa: E402
 import config as cfg  # noqa: E402
 import hotkey  # noqa: E402
+import i18n  # noqa: E402
 import meeting  # noqa: E402
 from i18n import t  # noqa: E402
 from meeting import MeetingPipeline  # noqa: E402
@@ -192,6 +193,7 @@ class Dikte:
             BUSY: ("Working…", "view-refresh", "Dikte: working"),
         }
         label, icon, tip = labels[self.state]
+        agent = assistant.display_name(self.conf)
         if self.ask_mode:
             tip = "Dikte: talking to Claude"
             if self.state == RECORDING:
@@ -202,9 +204,11 @@ class Dikte:
         self.toggle_action.setEnabled(
             self.state == IDLE or (self.state == RECORDING and not self.ask_mode)
         )
+        asked = i18n.name(agent, "dative")
         self.ask_action.setText(
-            t("Stop and ask Claude") if self.state == RECORDING and self.ask_mode
-            else t("Ask Claude")
+            t("Stop and ask {name}", name=asked)
+            if self.state == RECORDING and self.ask_mode
+            else t("Ask {name}", name=asked)
         )
         self.ask_action.setEnabled(
             self.state == IDLE or (self.state == RECORDING and self.ask_mode)
@@ -213,7 +217,8 @@ class Dikte:
         # A Claude command is the one job long enough to be worth calling off
         # once it is already running.
         self.cancel_action.setText(
-            t("Stop Claude") if self.state == BUSY and self.ask_mode
+            t("Stop {name}", name=i18n.name(agent, "accusative"))
+            if self.state == BUSY and self.ask_mode
             else t("Cancel recording")
         )
         self.cancel_action.setEnabled(
@@ -351,7 +356,10 @@ class Dikte:
         """Drop the thread Claude has been following, so the next command starts
         a conversation of its own."""
         assistant.clear_session()
-        self.overlay.show_done(t("Claude starts fresh next time."), 2500)
+        self.overlay.show_done(
+            t("{name} starts fresh next time.",
+              name=assistant.display_name(self.conf)), 2500
+        )
 
     def _tick(self):
         seconds = self.elapsed.elapsed() / 1000.0
@@ -493,17 +501,19 @@ class Dikte:
 
     def _on_finished(self, _raw, text, warning):
         asked = self.ask_mode
+        agent = assistant.display_name(self.conf)
         if warning:
             # The text was still pasted, but something on the way did not run.
             # Say so loudly: a rejected key, or a tool Claude was not allowed to
             # touch, otherwise looks exactly like a job that worked.
             first_line = warning.splitlines()[0]
             self.overlay.show_warning(
-                t("Claude answered, but: {error}", error=first_line) if asked
+                t("{name} answered, but: {error}", name=agent, error=first_line)
+                if asked
                 else t("Pasted raw, cleanup failed: {error}", error=first_line)
             )
             self.tray.showMessage(
-                t("Dikte: Claude could not do all of it") if asked
+                t("Dikte: {name} could not do all of it", name=agent) if asked
                 else t("Dikte: cleanup failed"),
                 f"{warning}\n\n{text}" if asked else warning,
                 QSystemTrayIcon.MessageIcon.Warning, 10000,
@@ -514,7 +524,9 @@ class Dikte:
             if asked:
                 # Longer than a dictation's flash: this one is an answer, and
                 # it is worth being able to read the start of it in the corner.
-                self.overlay.show_done(t("Claude: {preview}", preview=preview), 6000)
+                self.overlay.show_done(
+                    t("{name}: {preview}", name=agent, preview=preview), 6000
+                )
             else:
                 action = t("Pasted") if self.conf["auto_paste"] else t("Copied")
                 self.overlay.show_done(

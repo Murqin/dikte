@@ -86,7 +86,9 @@ süreyi, ardından hangi aşamada olduğunu gösterir. Odak almaz. Dikte çalı�
   yapıştırır: cevabı ya da ne yapıldığını söyleyen bir cümle. Kendi açacağın
   oturumun aynısıdır, yani skill'lerin ve bağlı servislerin oradadır; "bunu
   perşembe üçe takvime koy" cümlesini Claude olmayan bir pencerede söyleyebilir
-  olmanı sağlayan da budur. Model, izinler ve çalışma dizini Ayarlar → Claude
+  olmanı sağlayan da budur. Codex (`codex exec`) da aynı şekilde çalışır;
+  OpenRouter ise ikisi de kurulu olmayan bir makinede düz soru cevap için
+  duruyor. Sağlayıcı, model, izinler ve çalışma dizini Ayarlar → Claude
   sekmesinde; arka arkaya verilen komutlar tek bir konuşmada kalır.
 - **Toplantılar** mikrofonla hoparlör çıkışından aynı anda kaydedilir; kimin ne
   dediği tahmin edilmez, sesin hangi kanaldan geldiğiyle belli olur. İki taraf
@@ -118,7 +120,7 @@ grubunda olmasını gerektirir: `sudo usermod -aG input $USER`.
 dikte.py          giriş noktası, tepsi simgesi, durum makinesi, IPC
 audio.py          PCM kaydı: diktede pw-record, toplantıda ffmpeg
 meeting.py        kanal ayırma, konuşmacı etiketi, temizleme, tutanak
-assistant.py      dikteyi Claude Code'dan geçirip cevabı geri okuma
+assistant.py      dikteyi Claude Code, Codex ya da OpenRouter'dan geçirme
 api.py            iki sağlayıcıda transkript + OpenRouter temizleme (yalnız stdlib)
 worker.py         transkript → temizleme → pano → yapıştırma
 vad.py            kayıtta gerçekten konuşma var mı kararı
