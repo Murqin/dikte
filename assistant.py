@@ -68,6 +68,18 @@ CODEX_ITEMS = {
 }
 
 
+# How hard to think, in each provider's own vocabulary. The setting is one
+# scale, offered once, because "think harder" is one thing to want; what differs
+# is only which rungs a provider has. A level it does not have lands on the
+# nearest one it does rather than being dropped.
+CLAUDE_EFFORT = {"none": "low", "minimal": "low", "low": "low",
+                 "medium": "medium", "high": "high", "xhigh": "xhigh",
+                 "max": "max"}
+CODEX_EFFORT = {"none": "minimal", "minimal": "minimal", "low": "low",
+                "medium": "medium", "high": "high", "xhigh": "high",
+                "max": "high"}
+
+
 class AssistantError(Exception):
     pass
 
@@ -207,6 +219,9 @@ def _ask_claude(prompt, conf, session, on_stage, should_stop):
         "--permission-mode", conf["assistant_permission_mode"],
         "--append-system-prompt", conf.assistant_prompt(),
     ]
+    effort = CLAUDE_EFFORT.get(conf["assistant_reasoning"], "")
+    if effort:
+        cmd += ["--effort", effort]
     if session:
         cmd += ["--resume", session]
 
@@ -269,6 +284,9 @@ def _ask_codex(prompt, conf, session, on_stage, should_stop):
     ]
     if conf["assistant_codex_model"].strip():
         settings += ["-m", conf["assistant_codex_model"].strip()]
+    effort = CODEX_EFFORT.get(conf["assistant_reasoning"], "")
+    if effort:
+        settings += ["-c", f'model_reasoning_effort="{effort}"']
 
     cmd = (["codex", "exec", "resume", session] if session else ["codex", "exec"])
     cmd += settings + [body]
@@ -323,7 +341,8 @@ def _ask_openrouter(prompt, conf, on_stage):
     try:
         answer = api.chat(
             messages, conf.openrouter_key(), conf["assistant_openrouter_model"],
-            conf.assistant_prompt(), base_url=conf["openrouter_base_url"],
+            conf.assistant_prompt(), reasoning=conf["assistant_reasoning"],
+            base_url=conf["openrouter_base_url"],
             timeout=conf["assistant_timeout"],
         )
     except api.ApiError as exc:

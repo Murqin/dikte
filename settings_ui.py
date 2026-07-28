@@ -395,6 +395,18 @@ class SettingsWindow(QDialog):
         dir_note.setWordWrap(True)
         how_form.addRow(dir_note)
 
+        # One scale for all three: how hard to think is one thing to want, and
+        # each provider is handed the nearest rung it actually has.
+        self.assistant_reasoning = QComboBox()
+        for label, value in REASONING_LEVELS:
+            self.assistant_reasoning.addItem(t(label), value)
+        self.assistant_reasoning.setToolTip(t(
+            "More thinking is slower, and you are standing in front of the "
+            "screen while it happens. Worth it for a job that has to be worked "
+            "out rather than looked up."
+        ))
+        how_form.addRow(t("Thinking"), self.assistant_reasoning)
+
         self.assistant_timeout = QSpinBox()
         self.assistant_timeout.setRange(15, 3600)
         self.assistant_timeout.setSuffix(t(" s"))
@@ -903,6 +915,7 @@ class SettingsWindow(QDialog):
         self._select_data(self.assistant_codex_sandbox, conf["assistant_codex_sandbox"])
         self.assistant_openrouter_model.setCurrentText(conf["assistant_openrouter_model"])
         self._assistant_provider_changed()  # selecting index 0 fires no signal
+        self._select_data(self.assistant_reasoning, conf["assistant_reasoning"])
         self.assistant_dir.setText(conf["assistant_dir"])
         self.assistant_timeout.setValue(int(conf["assistant_timeout"]))
         self.assistant_session_minutes.setValue(int(conf["assistant_session_minutes"]))
@@ -997,6 +1010,7 @@ class SettingsWindow(QDialog):
             self.assistant_openrouter_model.currentText().strip()
             or cfg.DEFAULTS["assistant_openrouter_model"]
         )
+        conf["assistant_reasoning"] = self.assistant_reasoning.currentData() or ""
         conf["assistant_dir"] = self.assistant_dir.text().strip()
         conf["assistant_timeout"] = self.assistant_timeout.value()
         conf["assistant_session_minutes"] = self.assistant_session_minutes.value()

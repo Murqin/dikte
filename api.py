@@ -209,8 +209,8 @@ def cleanup(text, api_key, model, system_prompt, reasoning="",
     return content
 
 
-def chat(messages, api_key, model, system_prompt, base_url=OPENROUTER_URL,
-         timeout=180):
+def chat(messages, api_key, model, system_prompt, reasoning="",
+         base_url=OPENROUTER_URL, timeout=180):
     """A conversation, rather than one transcript rewritten.
 
     The messages are the whole history and come back unchanged; the caller keeps
@@ -223,6 +223,8 @@ def chat(messages, api_key, model, system_prompt, base_url=OPENROUTER_URL,
         "model": model,
         "messages": [{"role": "system", "content": system_prompt}] + list(messages),
     }
+    if reasoning:
+        payload["reasoning"] = {"effort": reasoning, "exclude": True}
     try:
         data = _request(
             f"{base_url.rstrip('/')}/chat/completions",

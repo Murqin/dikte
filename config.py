@@ -340,6 +340,7 @@ DEFAULTS = {
     "assistant_codex_model": "",    # empty -> whatever Codex is set to
     "assistant_codex_sandbox": "workspace-write",
     "assistant_openrouter_model": "google/gemini-3.5-flash",
+    "assistant_reasoning": "",      # empty -> the model's own default
     "assistant_dir": "",            # empty -> the home directory
     "assistant_prompt": "",         # empty -> language-specific default
     "assistant_cleanup": False,     # the model reads through filler words fine

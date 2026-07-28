@@ -36,10 +36,15 @@ class Overlay(QWidget):
     of covering it, which is what lets a dictation and a command to the agent be
     under way at the same time and still both be visible."""
 
-    def __init__(self, corner="bottom-left", below=None):
+    def __init__(self, corner="bottom-left", below=None, dismissable=False):
         super().__init__(None)
         self.corner = corner
         self.below = below
+        # A job that can run for ten minutes should not have to be watched for
+        # ten minutes. Clicking such an indicator puts the progress away; the
+        # work carries on and its result still shows up.
+        self.dismissable = dismissable
+        self.muted = False
         self._stacked = False
         self.state = "idle"
         self.message = ""
@@ -58,7 +63,13 @@ class Overlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        # One that can be clicked away has to receive the click, which means it
+        # also swallows one aimed at whatever is underneath it. The rest stay
+        # transparent to the mouse, as an indicator should be.
+        if dismissable:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.resize(MIN_WIDTH, HEIGHT)
 
@@ -79,6 +90,7 @@ class Overlay(QWidget):
         self.message = ""
         self.seconds = 0.0
         self.levels = [0.0] * BARS
+        self.muted = False   # a new run starts visible, whatever the last one did
         self._hide_timer.stop()
         self._appear()
 
@@ -93,26 +105,31 @@ class Overlay(QWidget):
         self._appear()
 
     def show_busy(self, message):
+        # Muted: the stages keep arriving and are simply not drawn. The state is
+        # left alone as well, so nothing repaints the box back onto the screen.
+        if self.muted:
+            self.message = message
+            return
         self.state = "busy"
         self.message = message
         self._hide_timer.stop()
         self._appear()
 
     def show_done(self, message="", msec=2000):
-        self.state = "done"
-        self.message = message
-        self._appear()
-        self._hide_timer.start(msec)
+        self._finish("done", message, msec)
 
     def show_warning(self, message, msec=9000):
         """Finished, but something the user should know about went wrong."""
-        self.state = "warning"
-        self.message = message
-        self._appear()
-        self._hide_timer.start(msec)
+        self._finish("warning", message, msec)
 
     def show_error(self, message, msec=6000):
-        self.state = "error"
+        self._finish("error", message, msec)
+
+    def _finish(self, state, message, msec):
+        """An outcome always shows, even one that was told to be quiet: waving
+        the progress away asks not to be watched, not to be kept in the dark."""
+        self.muted = False
+        self.state = state
         self.message = message
         self._appear()
         self._hide_timer.start(msec)
@@ -120,6 +137,14 @@ class Overlay(QWidget):
     def dismiss(self):
         self._hide_timer.stop()
         self._conceal()
+
+    def mousePressEvent(self, event):
+        # Only a job in progress can be waved away. A recording is short and
+        # ending it by accident would cost the words; an outcome goes on its own.
+        if self.dismissable and self.state == "busy":
+            self.muted = True
+            self.dismiss()
+        event.accept()
 
     @property
     def showing(self):
@@ -172,7 +197,9 @@ class Overlay(QWidget):
             width = MIN_WIDTH + (24 if self.state == "meeting" else 0)
         else:
             metrics = QFontMetrics(self._label_font())
-            width = max(MIN_WIDTH, min(MAX_WIDTH, metrics.horizontalAdvance(self.message) + 76))
+            extra = 76 + (18 if self._can_dismiss else 0)
+            width = max(MIN_WIDTH,
+                        min(MAX_WIDTH, metrics.horizontalAdvance(self.message) + extra))
         self.resize(width, HEIGHT)
 
     def _reposition(self):
@@ -232,6 +259,8 @@ class Overlay(QWidget):
             self._draw_time(painter)
         else:
             self._draw_message(painter)
+            if self._can_dismiss:
+                self._draw_dismiss(painter)
 
     def _draw_indicator(self, painter, accent):
         cx, cy = 26.0, self.height() / 2
@@ -340,10 +369,27 @@ class Overlay(QWidget):
             text,
         )
 
+    @property
+    def _can_dismiss(self):
+        return self.dismissable and self.state == "busy"
+
+    def _draw_dismiss(self, painter):
+        """A faint cross on the right: without it there is nothing to say the
+        box can be clicked away, and a feature nobody can see is not one."""
+        cx, cy = self.width() - 18.0, self.height() / 2
+        pen = QPen(QColor(MUTED), 1.6)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(QPointF(cx - 4, cy - 4), QPointF(cx + 4, cy + 4))
+        painter.drawLine(QPointF(cx + 4, cy - 4), QPointF(cx - 4, cy + 4))
+
     def _draw_message(self, painter):
         painter.setFont(self._label_font())
         painter.setPen({"error": ERR, "warning": WARN}.get(self.state, TEXT))
-        box = QRectF(46, 0, self.width() - 60, self.height())
+        # Leave the cross its corner rather than running the text under it.
+        box = QRectF(46, 0, self.width() - 60 - (18 if self._can_dismiss else 0),
+                     self.height())
         metrics = QFontMetrics(self._label_font())
         text = metrics.elidedText(self.message, Qt.TextElideMode.ElideRight, int(box.width()))
         painter.drawText(

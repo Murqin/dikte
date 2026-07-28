@@ -360,6 +360,11 @@ TR = {
         "hesabınla.",
     "How it runs": "Nasıl çalışıyor",
     "Runs on": "Şunun üstünde çalışır",
+    "More thinking is slower, and you are standing in front of the screen while "
+    "it happens. Worth it for a job that has to be worked out rather than "
+    "looked up.":
+        "Daha çok düşünmek daha yavaştır ve bu sırada ekranın başında bekliyor "
+        "olursun. Bakılıp bulunacak değil, çözülmesi gereken işler için değer.",
     "Claude Code": "Claude Code",
     "Codex": "Codex",
     "Codex's own default": "Codex'in kendi varsayılanı",
