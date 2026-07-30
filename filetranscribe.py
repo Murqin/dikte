@@ -126,7 +126,7 @@ class FileTranscriber(QObject):
 
     def _cleanup(self, text, timestamps):
         conf = self.conf
-        prompt = conf.cleanup_prompt(with_timestamps=timestamps)
+        prompt = conf.cleanup_prompt(with_timestamps=timestamps, subtitles=True)
         out = []
         for block in split_text(text, timestamps):
             self._check()

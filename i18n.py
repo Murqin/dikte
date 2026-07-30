@@ -206,6 +206,13 @@ TR = {
     "how much it may touch your words.":
         "Temizleme modeline verilen sistem talimatı. Ne kadar müdahale edeceğini "
         "burada belirlersin.",
+    "Dictation": "Dikte",
+    "Used instead when an audio or video file is cleaned up. It is written for "
+    "subtitles: lines stay where they are, nothing is shortened, and misheard "
+    "words are repaired from the context.":
+        "Bir ses ya da video dosyası temizlenirken bunun yerine bu kullanılır. "
+        "Altyazı için yazılmıştır: satırlar yerinde kalır, hiçbir şey kısaltılmaz, "
+        "yanlış duyulan kelimeler bağlamdan düzeltilir.",
     "Reset to default": "Varsayılana döndür",
     "Names and terms you say often (optional). They go to the transcription "
     "model as a hint, and to the cleanup model as a glossary, so it can repair "
@@ -228,6 +235,10 @@ TR = {
         "Her bölümün başına [dd:ss] koyar. Bölüm zamanı döndüren tek model olan "
         "whisper-1, seçtiğin sağlayıcı üzerinden kullanılır.",
     "Run the cleanup model afterwards": "Sonrasında temizleme modelinden geçir",
+    "With its own rules, under Cleanup rules: written for subtitles, so the "
+    "lines keep their place and nothing is shortened.":
+        "Kendi kurallarıyla, Temizleme kuralları sekmesinin altında: altyazı için "
+        "yazılmıştır, satırlar yerinde kalır ve hiçbir şey kısaltılmaz.",
     "Transcribe": "Yazıya çevir",
     "Stop": "Durdur",
     "Copy": "Panoya kopyala",

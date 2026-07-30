@@ -106,7 +106,8 @@ second one stacks above the first while both are up.
   for.
 - **Audio and video files** run through the same models under Settings → Audio
   file, optionally with `[mm:ss]` timestamps, chunked through ffmpeg when long,
-  and saved as `.txt` or as `.srt` subtitles.
+  and saved as `.txt` or as `.srt` subtitles; their cleanup follows its own rules,
+  written for subtitles, so the lines keep their place and nothing is shortened.
 - **History** of every dictation under Settings → History, with a size limit and
   right-click to delete.
 - **Turkish and English interface**, following the system locale by default.

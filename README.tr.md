@@ -103,7 +103,9 @@ birden ekrandayken ikincisi birincinin üstüne yerleşir.
   ödenmiş transkriptin üstünden devam eder.
 - **Ses ve video dosyaları** Ayarlar → Ses dosyası sekmesinde aynı modellerden
   geçer; istersen `[dd:ss]` zaman damgalarıyla, uzun dosyalar ffmpeg ile
-  parçalanarak, sonuç `.txt` ya da `.srt` altyazı olarak kaydedilerek.
+  parçalanarak, sonuç `.txt` ya da `.srt` altyazı olarak kaydedilerek; temizleme
+  burada kendi kurallarıyla, altyazı için yazılmış haliyle çalışır: satırlar
+  yerinde kalır, hiçbir şey kısaltılmaz.
 - **Geçmiş** Ayarlar → Geçmiş sekmesinde; boyut sınırı var, sağ tıklayıp
   silebilirsin.
 - **Türkçe ve İngilizce arayüz**, varsayılan olarak sistem dilini izler.

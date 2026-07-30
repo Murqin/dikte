@@ -318,19 +318,24 @@ class SettingsWindow(QDialog):
     def _prompt_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        intro = QLabel(t("System instruction given to the cleanup model. This is where "
-                         "you decide how much it may touch your words."))
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
 
-        self.cleanup_prompt = QPlainTextEdit()
-        layout.addWidget(self.cleanup_prompt, 1)
-
-        reset = QPushButton(t("Reset to default"))
-        reset.clicked.connect(
-            lambda: self.cleanup_prompt.setPlainText(cfg.default_cleanup_prompt())
+        # Two jobs, two sets of rules: dictation is rewritten for reading, an
+        # audio file becomes subtitles that have to stay in sync with the voice.
+        inner = QTabWidget()
+        self.cleanup_prompt = self._prompt_page(
+            inner, t("Dictation"),
+            t("System instruction given to the cleanup model. This is where you "
+              "decide how much it may touch your words."),
+            cfg.default_cleanup_prompt,
         )
-        layout.addWidget(reset, 0, Qt.AlignmentFlag.AlignRight)
+        self.file_cleanup_prompt = self._prompt_page(
+            inner, t("Audio file"),
+            t("Used instead when an audio or video file is cleaned up. It is "
+              "written for subtitles: lines stay where they are, nothing is "
+              "shortened, and misheard words are repaired from the context."),
+            cfg.default_file_cleanup_prompt,
+        )
+        layout.addWidget(inner, 1)
 
         hint = QLabel(t("Names and terms you say often (optional). They go to the "
                         "transcription model as a hint, and to the cleanup model as a "
@@ -726,6 +731,10 @@ class SettingsWindow(QDialog):
         layout.addWidget(self.file_timestamps)
 
         self.file_cleanup = QCheckBox(t("Run the cleanup model afterwards"))
+        self.file_cleanup.setToolTip(
+            t("With its own rules, under Cleanup rules: written for subtitles, so "
+              "the lines keep their place and nothing is shortened.")
+        )
         layout.addWidget(self.file_cleanup)
 
         self.file_run = QPushButton(t("Transcribe"))
@@ -856,6 +865,22 @@ class SettingsWindow(QDialog):
         return page
 
     @staticmethod
+    def _prompt_page(tabs, title, intro, default):
+        """A tab holding one editable prompt, and returns its box."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        label = QLabel(intro)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        box = QPlainTextEdit()
+        layout.addWidget(box, 1)
+        reset = QPushButton(t("Reset to default"))
+        reset.clicked.connect(lambda: box.setPlainText(default()))
+        layout.addWidget(reset, 0, Qt.AlignmentFlag.AlignRight)
+        tabs.addTab(page, title)
+        return box
+
+    @staticmethod
     def _shortcut_box(placeholder=""):
         """The field a global shortcut is typed or picked in."""
         box = QComboBox()
@@ -905,6 +930,9 @@ class SettingsWindow(QDialog):
         self.cleanup_model.setCurrentText(conf["cleanup_model"])
         self._select_data(self.cleanup_reasoning, conf["cleanup_reasoning"])
         self.cleanup_prompt.setPlainText(conf["cleanup_prompt"] or cfg.default_cleanup_prompt())
+        self.file_cleanup_prompt.setPlainText(
+            conf["file_cleanup_prompt"] or cfg.default_file_cleanup_prompt()
+        )
         self.transcribe_prompt.setPlainText(conf["transcribe_prompt"])
 
         self.assistant_shortcut.setCurrentText(conf["assistant_shortcut"])
@@ -990,6 +1018,9 @@ class SettingsWindow(QDialog):
         # interface language also switches the prompt language.
         prompt = self.cleanup_prompt.toPlainText().strip()
         conf["cleanup_prompt"] = "" if prompt == cfg.default_cleanup_prompt() else prompt
+        file_prompt = self.file_cleanup_prompt.toPlainText().strip()
+        conf["file_cleanup_prompt"] = ("" if file_prompt == cfg.default_file_cleanup_prompt()
+                                       else file_prompt)
         conf["transcribe_prompt"] = self.transcribe_prompt.toPlainText().strip()
 
         conf["assistant_shortcut"] = self.assistant_shortcut.currentText().strip()
