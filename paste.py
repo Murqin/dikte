@@ -1,5 +1,6 @@
-"""Clipboard (wl-clipboard) and key injection (ydotool)."""
+"""Clipboard and key injection for Wayland and X11."""
 
+import os
 import shutil
 import subprocess
 import time
@@ -18,20 +19,23 @@ class PasteError(Exception):
 
 
 def read_clipboard():
-    if not shutil.which("wl-paste"):
+    command = (["xclip", "-selection", "clipboard", "-out"] if _x11()
+               else ["wl-paste", "--no-newline"])
+    if not shutil.which(command[0]):
         return None
     try:
-        res = subprocess.run(["wl-paste", "--no-newline"], capture_output=True, timeout=5)
+        res = subprocess.run(command, capture_output=True, timeout=5)
     except (subprocess.SubprocessError, OSError):
         return None
     return res.stdout if res.returncode == 0 else None
 
 
-def _run_wl_copy(payload):
-    """wl-copy forks to keep owning the selection; leaving its pipes open makes
-    subprocess.run wait for EOF forever, hence DEVNULL."""
+def _run_copy(payload):
+    """The clipboard owner may fork; do not leave inherited pipes open."""
+    command = (["xclip", "-selection", "clipboard", "-in"] if _x11()
+               else ["wl-copy"])
     return subprocess.run(
-        ["wl-copy"],
+        command,
         input=payload,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -40,33 +44,58 @@ def _run_wl_copy(payload):
 
 
 def copy(text):
-    if not shutil.which("wl-copy"):
-        raise PasteError(t("wl-copy not found. Install wl-clipboard."))
+    tool = "xclip" if _x11() else "wl-copy"
+    if not shutil.which(tool):
+        raise PasteError(t("{tool} not found; clipboard copy is unavailable.", tool=tool))
     try:
-        res = _run_wl_copy(text.encode("utf-8"))
+        res = _run_copy(text.encode("utf-8"))
     except (subprocess.SubprocessError, OSError) as exc:
         raise PasteError(t("Could not copy to clipboard: {error}", error=exc)) from exc
     if res.returncode != 0:
-        raise PasteError(t("wl-copy exited with code {code}.", code=res.returncode))
+        raise PasteError(t("{tool} exited with code {code}.",
+                           tool=tool, code=res.returncode))
 
 
 def copy_bytes(data):
-    if data is None or not shutil.which("wl-copy"):
+    tool = "xclip" if _x11() else "wl-copy"
+    if data is None or not shutil.which(tool):
         return
     try:
-        _run_wl_copy(data)
+        _run_copy(data)
     except (subprocess.SubprocessError, OSError):
         pass
 
 
 def ydotool_ready():
-    return shutil.which("ydotool") is not None
+    tool = "xdotool" if _x11() else "ydotool"
+    return shutil.which(tool) is not None
+
+
+def _x11():
+    return (os.environ.get("XDG_SESSION_TYPE") == "x11"
+            or bool(os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY")))
 
 
 def press(shortcut="ctrl+v", delay=0.12):
-    """Press a key combination through ydotool, e.g. 'ctrl+v'."""
+    """Press a key combination through xdotool or ydotool."""
     if not ydotool_ready():
-        raise PasteError(t("ydotool not found, cannot paste automatically."))
+        tool = "xdotool" if _x11() else "ydotool"
+        raise PasteError(t("{tool} not found, cannot paste automatically.", tool=tool))
+
+    if _x11():
+        key = shortcut.lower().replace("control", "ctrl")
+        time.sleep(delay)
+        try:
+            res = subprocess.run(
+                ["xdotool", "key", "--clearmodifiers", key],
+                capture_output=True, text=True, timeout=10,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise PasteError(t("Could not run xdotool: {error}", error=exc)) from exc
+        if res.returncode != 0:
+            raise PasteError(t("xdotool failed: {error}",
+                               error=res.stderr.strip() or "unknown error"))
+        return
 
     codes = []
     for key in (k.strip().lower() for k in shortcut.split("+") if k.strip()):

@@ -31,7 +31,7 @@ MIN_FRAMES = int(RATE * 0.25)
 
 
 class Recorder(QObject):
-    """Runs pw-record as a child process and reads raw PCM from its stdout."""
+    """Runs the available sound-server recorder and reads raw PCM from stdout."""
 
     level = pyqtSignal(float)              # 0.0 - 1.0, for the waveform
     stopped = pyqtSignal(str, float, object)  # wav path, duration (s), per-chunk RMS
@@ -53,20 +53,12 @@ class Recorder(QObject):
     def start(self, target="", max_seconds=300):
         if self.active:
             return
-        if not shutil.which("pw-record"):
-            self.failed.emit(t("pw-record not found. Is pipewire-audio installed?"))
+        cmd = recording_command(target)
+        if not cmd:
+            self.failed.emit(t(
+                "No audio recorder found. Install pulseaudio-utils or pipewire-audio."
+            ))
             return
-
-        cmd = [
-            "pw-record",
-            "--raw",
-            f"--rate={RATE}",
-            f"--channels={CHANNELS}",
-            "--format=s16",
-        ]
-        if target:
-            cmd.append(f"--target={target}")
-        cmd.append("-")
 
         try:
             self._proc = subprocess.Popen(
@@ -84,7 +76,8 @@ class Recorder(QObject):
         self._thread.start()
 
     def _pump(self):
-        stdout = self._proc.stdout
+        proc = self._proc
+        stdout = proc.stdout
         try:
             while True:
                 chunk = stdout.read(CHUNK_BYTES)
@@ -101,6 +94,15 @@ class Recorder(QObject):
                     break
         except (OSError, ValueError):
             pass
+        if not self._cancelled and not self._buffer and proc.poll() is not None:
+            try:
+                detail = proc.stderr.read().decode("utf-8", "replace").strip()
+            except (AttributeError, OSError):
+                detail = ""
+            self.failed.emit(t(
+                "Audio recorder stopped before receiving sound: {error}",
+                error=detail or f"exit code {proc.returncode}",
+            ))
 
     def _terminate(self):
         proc = self._proc
@@ -159,6 +161,33 @@ def write_wav(pcm, rate=RATE, channels=CHANNELS, width=SAMPLE_WIDTH):
         wav.setframerate(rate)
         wav.writeframes(pcm)
     return path
+
+
+def recording_command(target=""):
+    """Return a raw-s16 capture command for the sound server on this desktop.
+
+    parec works with both PulseAudio and PipeWire's PulseAudio compatibility
+    service, and its source names are the same ones shown by list_sources().
+    Keep pw-record as the fallback for minimal native-PipeWire installations.
+    """
+    if shutil.which("parec"):
+        cmd = [
+            "parec", "--record", "--raw", f"--rate={RATE}",
+            f"--channels={CHANNELS}", "--format=s16le",
+        ]
+        if target:
+            cmd.append(f"--device={target}")
+        return cmd
+    if shutil.which("pw-record"):
+        cmd = [
+            "pw-record", "--raw", f"--rate={RATE}",
+            f"--channels={CHANNELS}", "--format=s16",
+        ]
+        if target:
+            cmd.append(f"--target={target}")
+        cmd.append("-")
+        return cmd
+    return []
 
 
 class MeetingRecorder(QObject):

@@ -101,9 +101,20 @@ TR = {
     "pw-record not found. Is pipewire-audio installed?":
         "pw-record bulunamadı. pipewire-audio kurulu mu?",
     "Could not start recording: {error}": "Kayıt başlatılamadı: {error}",
+    "No audio recorder found. Install pulseaudio-utils or pipewire-audio.":
+        "Ses kayıt aracı bulunamadı. pulseaudio-utils ya da pipewire-audio kur.",
+    "Audio recorder stopped before receiving sound: {error}":
+        "Ses kayıt aracı veri alamadan kapandı: {error}",
     "wl-copy not found. Install wl-clipboard.":
         "wl-copy bulunamadı. wl-clipboard paketini kur.",
     "Could not copy to clipboard: {error}": "Panoya kopyalanamadı: {error}",
+    "{tool} not found; clipboard copy is unavailable.":
+        "{tool} bulunamadı; panoya kopyalama kullanılamıyor.",
+    "{tool} exited with code {code}.": "{tool} {code} koduyla çıktı.",
+    "{tool} not found, cannot paste automatically.":
+        "{tool} bulunamadı, otomatik yapıştırma yapılamıyor.",
+    "Could not run xdotool: {error}": "xdotool çalıştırılamadı: {error}",
+    "xdotool failed: {error}": "xdotool hatası: {error}",
     "wl-copy exited with code {code}.": "wl-copy {code} koduyla çıktı.",
     "ydotool not found, cannot paste automatically.":
         "ydotool bulunamadı, otomatik yapıştırma yapılamıyor.",
@@ -265,9 +276,19 @@ TR = {
 
     # --- settings: shortcut ------------------------------------------------
     "Install as a KDE shortcut": "KDE kısayolu olarak kur",
+    "Install as a global shortcut": "Global kısayol olarak kur",
     "Remove": "Kaldır",
     "Registered in KDE: {shortcut}": "KDE'de kayıtlı: {shortcut}",
     "No KDE shortcut installed.": "KDE kısayolu kurulu değil.",
+    "Registered in {desktop}: {shortcut}": "{desktop}'da kayıtlı: {shortcut}",
+    "No global shortcut installed.": "Global kısayol kurulu değil.",
+    "No global shortcut installed. The tray menu starts a meeting too.":
+        "Global kısayol kurulu değil. Toplantı tepsi menüsünden de başlatılabilir.",
+    "No global shortcut installed. The tray menu asks it too.":
+        "Global kısayol kurulu değil. Tepsi menüsünden de soru sorulabilir.",
+    "Shortcut saved: {shortcut}": "Kısayol kaydedildi: {shortcut}",
+    "Could not register the GNOME shortcut: {error}":
+        "GNOME kısayolu kaydedilemedi: {error}",
     "Use the built-in listener (/dev/input), for when the KDE shortcut is not active yet":
         "Yerleşik dinleyici kullan (/dev/input), KDE kısayolu henüz etkin değilken",
     "Works immediately, no session restart. The only difference: the key "
