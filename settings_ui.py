@@ -90,8 +90,8 @@ REASONING_LEVELS = [
     ("Very high", "xhigh"), ("Maximum", "max"),
 ]
 PASTE_SHORTCUTS = ["ctrl+v", "ctrl+shift+v", "shift+insert"]
-# Offered for all three global shortcuts, which keeps them one kind of field
-# rather than three. The boxes stay editable: this is a shortlist of
+# Offered for all four global shortcuts, which keeps them one kind of field
+# rather than four. The boxes stay editable: this is a shortlist of
 # combinations that are usually free, not the set of ones that work.
 SHORTCUTS = [
     "Ctrl+Space", "Ctrl+Alt+Space", "Ctrl+Shift+Space", "Meta+Space",
@@ -112,12 +112,14 @@ class SettingsWindow(QDialog):
     _or_test_done = pyqtSignal(bool, str)
 
     def __init__(self, conf, launch_command, meeting_command=None,
-                 meetings=None, ask_command=None, parent=None):
+                 meetings=None, ask_command=None, cancel_command=None,
+                 parent=None):
         super().__init__(parent)
         self.conf = conf
         self.launch_command = launch_command
         self.meeting_command = meeting_command or launch_command
         self.ask_command = ask_command or launch_command
+        self.cancel_command = cancel_command or launch_command
         self.meetings = meetings
         # Each provider keeps its own transcription model, so switching the
         # provider back and forth never overwrites the other one's.
@@ -135,7 +137,7 @@ class SettingsWindow(QDialog):
         tabs.addTab(self._meeting_tab(), t("Meeting"))
         tabs.addTab(self._minutes_tab(), t("Minutes"))
         tabs.addTab(self._file_tab(), t("Audio file"))
-        tabs.addTab(self._shortcut_tab(), t("Shortcut"))
+        tabs.addTab(self._shortcut_tab(), t("Shortcuts"))
         tabs.addTab(self._history_tab(), t("History"))
 
         # Save keeps the window open, so the window is closed with the titlebar
@@ -779,24 +781,43 @@ class SettingsWindow(QDialog):
     def _shortcut_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        # Both keys in one form, the way the Meeting and Agent tabs already lay
+        # theirs out: two forms would give the two rows label columns of their
+        # own, and two combo boxes starting at different places read as two
+        # unrelated settings rather than the pair they are.
         form = QFormLayout()
-        self.shortcut = self._shortcut_box("Ctrl+Space")
-        form.addRow(t("Shortcut"), self.shortcut)
-        layout.addLayout(form)
 
+        self.shortcut = self._shortcut_box("Ctrl+Space")
         install = QPushButton(t("Install as a KDE shortcut"))
         install.clicked.connect(self._install_shortcut)
         remove = QPushButton(t("Remove"))
         remove.clicked.connect(self._remove_shortcut)
-        row = QHBoxLayout()
-        row.addWidget(install)
-        row.addWidget(remove)
-        row.addStretch(1)
-        layout.addLayout(row)
-
+        form.addRow(t("Start and stop"),
+                    self._row(self.shortcut, install, remove))
         self.shortcut_status = QLabel("")
         self.shortcut_status.setWordWrap(True)
-        layout.addWidget(self.shortcut_status)
+        form.addRow(self.shortcut_status)
+
+        # Stopping a recording sends it off to be transcribed, which is the one
+        # thing you cannot take back. Cancelling needs a key of its own for the
+        # same reason it needs to be quick: by the time the tray menu is open,
+        # the sentence you did not mean to dictate is halfway to the model.
+        self.cancel_shortcut = self._shortcut_box(t("none"))
+        self.cancel_shortcut.setToolTip(t(
+            "Throws the recording away without transcribing it. Works on a "
+            "dictation and on a command for the agent alike, whichever is running."
+        ))
+        cancel_install = QPushButton(t("Install as a KDE shortcut"))
+        cancel_install.clicked.connect(self._install_cancel_shortcut)
+        cancel_remove = QPushButton(t("Remove"))
+        cancel_remove.clicked.connect(self._remove_cancel_shortcut)
+        form.addRow(t("Discard the recording"),
+                    self._row(self.cancel_shortcut, cancel_install, cancel_remove))
+        self.cancel_shortcut_status = QLabel("")
+        self.cancel_shortcut_status.setWordWrap(True)
+        form.addRow(self.cancel_shortcut_status)
+
+        layout.addLayout(form)
 
         self.evdev_enabled = QCheckBox(t(
             "Use the built-in listener (/dev/input), for when the KDE shortcut is "
@@ -974,11 +995,13 @@ class SettingsWindow(QDialog):
         self.file_path = ""
 
         self.shortcut.setCurrentText(conf["shortcut"])
+        self.cancel_shortcut.setCurrentText(conf["cancel_shortcut"])
         self.evdev_enabled.setChecked(conf["evdev_hotkey"])
 
         self.history_limit.setValue(max(0, int(conf["history_limit"])))
 
         self._refresh_shortcut_status()
+        self._refresh_cancel_shortcut_status()
         self._refresh_meeting_shortcut_status()
         self._refresh_ask_shortcut_status()
         self._refresh_assistant_status()
@@ -1072,6 +1095,9 @@ class SettingsWindow(QDialog):
         conf["file_cleanup"] = self.file_cleanup.isChecked()
 
         conf["shortcut"] = self.shortcut.currentText().strip() or "Ctrl+Space"
+        # Left empty this one stays empty, unlike the dictation shortcut: a
+        # recording can always be thrown away from the tray menu.
+        conf["cancel_shortcut"] = self.cancel_shortcut.currentText().strip()
         conf["evdev_hotkey"] = self.evdev_enabled.isChecked()
         conf["history_limit"] = self.history_limit.value()
         conf.save()
@@ -1305,6 +1331,42 @@ class SettingsWindow(QDialog):
         self.shortcut_status.setText(
             t("Registered in KDE: {shortcut}", shortcut=current) if current
             else t("No KDE shortcut installed.")
+        )
+
+    def _install_cancel_shortcut(self):
+        combo = self.cancel_shortcut.currentText().strip()
+        if not combo:
+            QMessageBox.information(self, t("Shortcut"),
+                                    t("Type a key combination first."))
+            return
+        clashes = hotkey.conflicting_shortcuts(combo, hotkey.CANCEL_DESKTOP_ID)
+        if clashes:
+            answer = QMessageBox.question(
+                self, t("Shortcut conflict"),
+                t("{shortcut} is also used by:\n\n{list}\n\nInstall anyway?",
+                  shortcut=combo, list="\n".join(clashes[:6])),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        ok, message = hotkey.install_kde_shortcut(
+            combo, self.cancel_command, name="Dikte: discard the recording",
+            desktop_id=hotkey.CANCEL_DESKTOP_ID,
+        )
+        QMessageBox.information(self, t("Shortcut"), message)
+        if ok:
+            self.conf["cancel_shortcut"] = combo
+            self.conf.save()
+        self._refresh_cancel_shortcut_status()
+
+    def _remove_cancel_shortcut(self):
+        hotkey.remove_kde_shortcut(hotkey.CANCEL_DESKTOP_ID)
+        self._refresh_cancel_shortcut_status()
+
+    def _refresh_cancel_shortcut_status(self):
+        current = hotkey.kde_shortcut_status(hotkey.CANCEL_DESKTOP_ID)
+        self.cancel_shortcut_status.setText(
+            t("Registered in KDE: {shortcut}", shortcut=current) if current
+            else t("No KDE shortcut installed. The tray menu discards it too.")
         )
 
     def _install_meeting_shortcut(self):

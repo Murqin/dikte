@@ -25,12 +25,12 @@ sadece Python standart kütüphanesi ve PyQt6.
 sudo pacman -S --needed pipewire-audio wl-clipboard ydotool ffmpeg python-pyqt6
 systemctl --user enable --now ydotool     # otomatik yapıştırma için
 
-./install.sh                 # ya da:  ./install.sh "Ctrl+Alt+Space"
+./install.sh                 # ya da:  ./install.sh "Meta+Space" "Meta+Shift+Space"
 dikte                        # ilk açılışta ayarlar penceresi gelir
 ```
 
 `install.sh` `dikte` komutunu, menü girdisini, oturum açılışında otomatik
-başlatmayı ve KDE kısayolunu kurar.
+başlatmayı ve iki KDE kısayolunu kurar; tuşları da iki argümanı.
 
 Ayarlar penceresinde iki anahtar istenir: **OpenAI** ve **OpenRouter**. Sesi
 yazıya çevirme ikisinden birinde çalışır (varsayılan `gpt-4o-transcribe`),
@@ -45,7 +45,7 @@ yapıştırılır; modelin yanındaki kutudan düşünme seviyesini de seçebili
 | Ne | Nasıl |
 | --- | --- |
 | Kaydı başlat / bitir | `Ctrl+Space`, ya da tepsi simgesine tıkla |
-| Kaydı iptal et | Tepsi menüsü → *Kaydı iptal et*, ya da `dikte cancel` |
+| Kaydı çöpe at | `Ctrl+Alt+Space`, tepsi menüsü → *Kaydı iptal et*, ya da `dikte cancel` |
 | Ajana sesle komut ver | Tepsi menüsü → *Claude'a sor*, ya da `dikte ask` |
 | Toplantıyı başlat / bitir | Tepsi menüsü → *Toplantı kaydet*, ya da `dikte meeting` |
 | Ayarlar | Tepsi menüsü → *Ayarlar*, ya da `dikte settings` |
@@ -58,6 +58,13 @@ süreyi, ardından hangi aşamada olduğunu gösterir. Odak almaz. Dikte çalı�
 verilen komut yalnızca mikrofon için birbirini bekler, o da tek aygıt olduğu
 için; başka hiçbir şeyde beklemezler. Her birinin kendi göstergesi var, ikisi
 birden ekrandayken ikincisi birincinin üstüne yerleşir.
+
+Geri dönüşü olmayan adım kaydı bitirmek: ses o anda yola çıkar, biraz sonra da
+söylemek istemediğin cümle panoda ve yapıştırılmış olur. Bu yüzden kaydı çöpe
+atmanın kendi tuşu var — başlatan tuşun bir değiştirici ötesi — ve hangisi
+çalışıyorsa ona işler. Akla ilk gelen Escape olurdu ve yanlış olan da o:
+Escape odaktaki pencereye aittir, sen konuşurken de genelde başka bir şey
+odaktadır.
 
 ## Neler yapıyor
 
@@ -110,10 +117,10 @@ birden ekrandayken ikincisi birincinin üstüne yerleşir.
   silebilirsin.
 - **Türkçe ve İngilizce arayüz**, varsayılan olarak sistem dilini izler.
 
-## Global kısayol için bir kez oturum kapatmak gerekir
+## Global kısayollar için bir kez oturum kapatmak gerekir
 
 KWin `kglobalshortcutsrc` dosyasını yalnızca açılışta okur, yani `install.sh`'ın
-yazdığı kısayol oturumu yeniden açana kadar tetiklenmez. O zamana kadar Ayarlar →
+yazdığı kısayollar oturumu yeniden açana kadar tetiklenmez. O zamana kadar Ayarlar →
 Kısayol → **yerleşik dinleyici** `/dev/input` üzerinden kombinasyonu kendisi
 yakalar. Tek farkı: tuşu yutmaz, yani `Ctrl+Space` odaktaki uygulamaya da iletilir
 (bazı editörlerde otomatik tamamlama açılabilir). Dinleyici kullanıcının `input`

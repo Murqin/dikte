@@ -25,12 +25,12 @@ just the Python standard library and PyQt6.
 sudo pacman -S --needed pipewire-audio wl-clipboard ydotool ffmpeg python-pyqt6
 systemctl --user enable --now ydotool     # needed for auto-paste
 
-./install.sh                 # or:  ./install.sh "Ctrl+Alt+Space"
+./install.sh                 # or:  ./install.sh "Meta+Space" "Meta+Shift+Space"
 dikte                        # the settings window opens on first run
 ```
 
 `install.sh` adds the `dikte` command, a menu entry, an autostart entry and the
-KDE shortcut.
+two KDE shortcuts, whose keys are its two arguments.
 
 Two keys go in the settings window: **OpenAI** and **OpenRouter**. Speech to text
 runs on either one (`gpt-4o-transcribe` by default), cleanup always on
@@ -45,7 +45,7 @@ set next to it.
 | What | How |
 | --- | --- |
 | Start / stop recording | `Ctrl+Space`, or click the tray icon |
-| Cancel a recording | Tray menu → *Cancel recording*, or `dikte cancel` |
+| Throw the recording away | `Ctrl+Alt+Space`, tray menu → *Cancel recording*, or `dikte cancel` |
 | Speak a command to an agent | Tray menu → *Ask Claude*, or `dikte ask` |
 | Start / end a meeting | Tray menu → *Record a meeting*, or `dikte meeting` |
 | Settings | Tray menu → *Settings*, or `dikte settings` |
@@ -58,6 +58,13 @@ elapsed time, then the stage it is on. It never takes focus. Pressing
 A dictation and a command to the agent do wait on each other for the microphone,
 which is one device, but for nothing else: each has its own indicator, and the
 second one stacks above the first while both are up.
+
+Stopping is the step there is no taking back: it sends the audio off, and a
+moment later the sentence you did not mean to dictate is in your clipboard and
+pasted. So throwing a recording away has a key of its own, one modifier along
+from the key that started it, and it works on whichever of the two is running.
+Escape would have been the obvious choice and is the wrong one: it belongs to
+whatever window has focus, and something else is usually focused while you talk.
 
 ## What it does
 
@@ -112,9 +119,9 @@ second one stacks above the first while both are up.
   right-click to delete.
 - **Turkish and English interface**, following the system locale by default.
 
-## The global shortcut needs one logout
+## The global shortcuts need one logout
 
-KWin only reads `kglobalshortcutsrc` at startup, so the shortcut `install.sh`
+KWin only reads `kglobalshortcutsrc` at startup, so the shortcuts `install.sh`
 writes will not fire until you log out and back in. Until then, Settings →
 Shortcut → **built-in listener** reads `/dev/input` and catches the combination
 itself. The difference: it does not swallow the key, so `Ctrl+Space` also reaches

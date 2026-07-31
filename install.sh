@@ -8,6 +8,7 @@ BIN_DIR="$HOME/.local/bin"
 APP_DIR="$HOME/.local/share/applications"
 AUTOSTART_DIR="$HOME/.config/autostart"
 SHORTCUT="${1:-Ctrl+Space}"
+CANCEL_SHORTCUT="${2:-Ctrl+Alt+Space}"
 
 say()  { printf '  %s\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -76,11 +77,24 @@ StartupNotify=false
 EOF
 ok "Will start automatically on login"
 
-# 4. KDE global shortcut ---------------------------------------------------
+# 4. KDE global shortcuts --------------------------------------------------
+# Two of them: one to start and stop, one to throw the recording away. The
+# second is worth a key of its own because stopping is what sends the audio
+# off, and that is the step there is no taking back.
 cat > "$APP_DIR/dikte-toggle.desktop" <<EOF
 [Desktop Entry]
 Exec=$PY $DIR/dikte.py toggle
 Name=Dikte: start/stop recording
+NoDisplay=true
+StartupNotify=false
+Type=Application
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+cat > "$APP_DIR/dikte-cancel.desktop" <<EOF
+[Desktop Entry]
+Exec=$PY $DIR/dikte.py cancel
+Name=Dikte: discard the recording
 NoDisplay=true
 StartupNotify=false
 Type=Application
@@ -92,11 +106,15 @@ if command -v kwriteconfig6 >/dev/null; then
     --group services --group dikte-toggle.desktop \
     --key _launch "$SHORTCUT"
   ok "KDE shortcut registered: $SHORTCUT"
-  warn "KWin only reads this at startup, so the shortcut goes live after your"
+  kwriteconfig6 --notify --file kglobalshortcutsrc \
+    --group services --group dikte-cancel.desktop \
+    --key _launch "$CANCEL_SHORTCUT"
+  ok "Discard shortcut registered: $CANCEL_SHORTCUT"
+  warn "KWin only reads this at startup, so the shortcuts go live after your"
   say  "next login. Until then open Settings → Shortcut and turn on the"
-  say  "built-in listener to use it right away."
+  say  "built-in listener to use them right away."
 else
-  warn "kwriteconfig6 not found. Add the shortcut via System Settings > Shortcuts"
+  warn "kwriteconfig6 not found. Add the shortcuts via System Settings > Shortcuts"
 fi
 
 echo

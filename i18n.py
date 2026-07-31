@@ -268,6 +268,15 @@ TR = {
     "Remove": "Kaldır",
     "Registered in KDE: {shortcut}": "KDE'de kayıtlı: {shortcut}",
     "No KDE shortcut installed.": "KDE kısayolu kurulu değil.",
+    "Shortcuts": "Kısayollar",
+    "Start and stop": "Başlat ve bitir",
+    "Discard the recording": "Kaydı çöpe at",
+    "Throws the recording away without transcribing it. Works on a dictation "
+    "and on a command for the agent alike, whichever is running.":
+        "Kaydı yazıya dökmeden atar. Hangisi çalışıyorsa ona işler: dikteye de, "
+        "ajana verilen komuta da.",
+    "No KDE shortcut installed. The tray menu discards it too.":
+        "KDE kısayolu kurulu değil. Tepsi menüsü de kaydı atabilir.",
     "Use the built-in listener (/dev/input), for when the KDE shortcut is not active yet":
         "Yerleşik dinleyici kullan (/dev/input), KDE kısayolu henüz etkin değilken",
     "Works immediately, no session restart. The only difference: the key "

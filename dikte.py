@@ -148,7 +148,7 @@ class Dikte:
         self.menu.addAction(self.ask_cancel_action)
 
         self.cancel_action = QAction(t("Cancel recording"), self.menu)
-        self.cancel_action.triggered.connect(self.cancel)
+        self.cancel_action.triggered.connect(self._cancel)
         self.cancel_action.setEnabled(False)
         self.menu.addAction(self.cancel_action)
         self.menu.addSeparator()
@@ -301,6 +301,9 @@ class Dikte:
     def toggle_meeting(self):
         self._external("meeting", self._toggle_meeting)
 
+    def cancel(self):
+        self._external("cancel", self._cancel)
+
     def _external(self, name, handler):
         # The built-in listener sees the key press the instant it happens, so a
         # toggle arriving right behind one is the KDE shortcut catching up on
@@ -318,7 +321,8 @@ class Dikte:
         if timer is None:
             timer = self.last_evdev[name] = QElapsedTimer()
         timer.restart()
-        handlers = {"meeting": self._toggle_meeting, "ask": self._toggle_ask}
+        handlers = {"meeting": self._toggle_meeting, "ask": self._toggle_ask,
+                    "cancel": self._cancel}
         handlers.get(name, self._toggle)()
 
     def _retire_listener(self):
@@ -394,7 +398,7 @@ class Dikte:
         self.ask_overlay.show_busy(t("Transcribing…"))
         self.recorder.stop()
 
-    def cancel(self):
+    def _cancel(self):
         """Throw away whichever recording is running."""
         if not self.recording:
             return
@@ -412,7 +416,7 @@ class Dikte:
     def cancel_ask(self):
         """Call off the agent, whether it is still recording or already working."""
         if self.ask_state == RECORDING:
-            self.cancel()
+            self._cancel()
         elif self.ask_state == BUSY:
             self.ask_overlay.show_busy(t("Stopping…"))
             self.ask_pipeline.cancel()
@@ -643,7 +647,7 @@ class Dikte:
         if self.settings_window is None:
             self.settings_window = SettingsWindow(
                 self.conf, launch_command(), meeting_command(), self.meetings,
-                ask_command(),
+                ask_command(), cancel_command(),
             )
             self.settings_window.applied.connect(self._apply_settings)
             self.settings_window.finished.connect(self._settings_closed)
@@ -662,6 +666,7 @@ class Dikte:
         self._refresh_tray()
         if self.conf["evdev_hotkey"]:
             self.evdev.start({"toggle": self.conf["shortcut"],
+                              "cancel": self.conf["cancel_shortcut"],
                               "ask": self.conf["assistant_shortcut"],
                               "meeting": self.conf["meeting_shortcut"]})
         else:
@@ -714,6 +719,10 @@ def meeting_command():
 
 def ask_command():
     return f"{sys.executable} {os.path.realpath(__file__)} ask"
+
+
+def cancel_command():
+    return f"{sys.executable} {os.path.realpath(__file__)} cancel"
 
 
 def send_command(command, timeout=800):
