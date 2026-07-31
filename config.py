@@ -363,10 +363,13 @@ DEFAULTS = {
     "ui_language": "auto",          # auto | tr | en
     "openai_api_key": "",
     "openai_base_url": "https://api.openai.com/v1",
+    "groq_api_key": "",
+    "groq_base_url": "https://api.groq.com/openai/v1",
     "openrouter_api_key": "",
     "openrouter_base_url": "https://openrouter.ai/api/v1",
-    "transcribe_provider": "openai",  # openai | openrouter
+    "transcribe_provider": "openai",  # openai | groq | openrouter
     "transcribe_model": "gpt-4o-transcribe",           # used when provider is openai
+    "groq_transcribe_model": "whisper-large-v3-turbo",
     "openrouter_transcribe_model": "openai/gpt-4o-transcribe",
     "language": "tr",
     "transcribe_prompt": "",
@@ -494,12 +497,19 @@ class Config:
     def openrouter_key(self):
         return self["openrouter_api_key"].strip() or os.environ.get("OPENROUTER_API_KEY", "").strip()
 
+    def groq_key(self):
+        return self["groq_api_key"].strip() or os.environ.get("GROQ_API_KEY", "").strip()
+
     def transcribe_target(self):
         """Key, endpoint and model for whichever provider does speech to text."""
         if self["transcribe_provider"] == "openrouter":
             return api.Target("openrouter", "OpenRouter", self.openrouter_key(),
                               self["openrouter_base_url"],
                               self["openrouter_transcribe_model"])
+        if self["transcribe_provider"] == "groq":
+            return api.Target("groq", "Groq", self.groq_key(),
+                              self["groq_base_url"],
+                              self["groq_transcribe_model"])
         return api.Target("openai", "OpenAI", self.openai_key(),
                           self["openai_base_url"], self["transcribe_model"])
 

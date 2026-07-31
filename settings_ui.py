@@ -29,11 +29,14 @@ LANGUAGES = [
     ("German", "de"), ("French", "fr"), ("Spanish", "es"), ("Arabic", "ar"),
 ]
 CORNERS = ["bottom-left", "bottom-right", "top-left", "top-right"]
-TRANSCRIBE_PROVIDERS = [("OpenAI", "openai"), ("OpenRouter", "openrouter")]
+TRANSCRIBE_PROVIDERS = [
+    ("OpenAI", "openai"), ("Groq", "groq"), ("OpenRouter", "openrouter"),
+]
 # Starting points for the model box; "Fetch model list" replaces them with
 # whatever the provider offers today.
 TRANSCRIBE_MODELS = {
     "openai": ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"],
+    "groq": ["whisper-large-v3-turbo", "whisper-large-v3"],
     "openrouter": [
         "openai/gpt-4o-transcribe", "openai/gpt-4o-mini-transcribe",
         "openai/whisper-1", "openai/whisper-large-v3",
@@ -109,6 +112,7 @@ class SettingsWindow(QDialog):
     _models_loaded = pyqtSignal(list, str)
     _transcribe_models_loaded = pyqtSignal(list, str)
     _test_done = pyqtSignal(bool, str)
+    _groq_test_done = pyqtSignal(bool, str)
     _or_test_done = pyqtSignal(bool, str)
 
     def __init__(self, conf, launch_command, meeting_command=None,
@@ -121,7 +125,7 @@ class SettingsWindow(QDialog):
         self.meetings = meetings
         # Each provider keeps its own transcription model, so switching the
         # provider back and forth never overwrites the other one's.
-        self._models = {"openai": "", "openrouter": ""}
+        self._models = {"openai": "", "groq": "", "openrouter": ""}
         self._shown_provider = ""
         self.transcriber = FileTranscriber(conf, self)
         self.setWindowTitle(t("Dikte Settings"))
@@ -152,6 +156,7 @@ class SettingsWindow(QDialog):
         self._models_loaded.connect(self._on_models_loaded)
         self._transcribe_models_loaded.connect(self._on_transcribe_models_loaded)
         self._test_done.connect(self._on_test_done)
+        self._groq_test_done.connect(self._on_groq_test_done)
         self._or_test_done.connect(self._on_or_test_done)
         self.transcriber.progress.connect(self._on_file_progress)
         self.transcriber.finished.connect(self._on_file_finished)
@@ -253,6 +258,16 @@ class SettingsWindow(QDialog):
         self.test_label.setWordWrap(True)
         keys_form.addRow("OpenAI", self._row(self.openai_key, self.test_button))
         keys_form.addRow("", self.test_label)
+
+        self.groq_key = QLineEdit()
+        self.groq_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.groq_key.setPlaceholderText(t("gsk_… (falls back to GROQ_API_KEY)"))
+        self.groq_test_button = QPushButton(t("Test"))
+        self.groq_test_button.clicked.connect(self._test_groq)
+        self.groq_test_label = QLabel("")
+        self.groq_test_label.setWordWrap(True)
+        keys_form.addRow("Groq", self._row(self.groq_key, self.groq_test_button))
+        keys_form.addRow("", self.groq_test_label)
 
         self.openrouter_key = QLineEdit()
         self.openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
@@ -368,7 +383,7 @@ class SettingsWindow(QDialog):
         how = QGroupBox(t("How it runs"))
         how_form = QFormLayout(how)
         self.assistant_shortcut = self._shortcut_box(t("none"))
-        install = QPushButton(t("Install as a KDE shortcut"))
+        install = QPushButton(t("Install as a global shortcut"))
         install.clicked.connect(self._install_ask_shortcut)
         remove = QPushButton(t("Remove"))
         remove.clicked.connect(self._remove_ask_shortcut)
@@ -630,7 +645,7 @@ class SettingsWindow(QDialog):
         recording_form.addRow("", self.meeting_keep_audio)
 
         self.meeting_shortcut = self._shortcut_box(t("none"))
-        install = QPushButton(t("Install as a KDE shortcut"))
+        install = QPushButton(t("Install as a global shortcut"))
         install.clicked.connect(self._install_meeting_shortcut)
         remove = QPushButton(t("Remove"))
         remove.clicked.connect(self._remove_meeting_shortcut)
@@ -784,7 +799,7 @@ class SettingsWindow(QDialog):
         form.addRow(t("Shortcut"), self.shortcut)
         layout.addLayout(form)
 
-        install = QPushButton(t("Install as a KDE shortcut"))
+        install = QPushButton(t("Install as a global shortcut"))
         install.clicked.connect(self._install_shortcut)
         remove = QPushButton(t("Remove"))
         remove.clicked.connect(self._remove_shortcut)
@@ -920,8 +935,10 @@ class SettingsWindow(QDialog):
         self.keep_audio.setChecked(conf["keep_audio"])
 
         self.openai_key.setText(conf["openai_api_key"])
+        self.groq_key.setText(conf["groq_api_key"])
         self.openrouter_key.setText(conf["openrouter_api_key"])
         self._models = {"openai": conf["transcribe_model"],
+                        "groq": conf["groq_transcribe_model"],
                         "openrouter": conf["openrouter_transcribe_model"]}
         self._shown_provider = ""
         self._select_data(self.transcribe_provider, conf["transcribe_provider"])
@@ -1001,12 +1018,14 @@ class SettingsWindow(QDialog):
         conf["keep_audio"] = self.keep_audio.isChecked()
 
         conf["openai_api_key"] = self.openai_key.text().strip()
+        conf["groq_api_key"] = self.groq_key.text().strip()
         conf["openrouter_api_key"] = self.openrouter_key.text().strip()
 
         provider = self.transcribe_provider.currentData() or "openai"
         self._models[provider] = self.transcribe_model.currentText().strip()
         conf["transcribe_provider"] = provider
         for key, name in (("openai", "transcribe_model"),
+                          ("groq", "groq_transcribe_model"),
                           ("openrouter", "openrouter_transcribe_model")):
             conf[name] = self._models[key].strip() or cfg.DEFAULTS[name]
 
@@ -1108,14 +1127,21 @@ class SettingsWindow(QDialog):
         self.refresh_transcribe_models.setEnabled(False)
         self.transcribe_status.setText(t("Fetching model list…"))
         openai_key = self.openai_key.text().strip() or self.conf.openai_key()
+        groq_key = self.groq_key.text().strip() or self.conf.groq_key()
         openrouter_key = self.openrouter_key.text().strip() or self.conf.openrouter_key()
-        base = self.conf["openai_base_url"]
 
         def work():
             try:
-                models = (api.openrouter_models(openrouter_key, transcription=True)
-                          if provider == "openrouter"
-                          else api.openai_models(openai_key, base))
+                if provider == "openrouter":
+                    models = api.openrouter_models(openrouter_key, transcription=True)
+                elif provider == "groq":
+                    models = api.openai_models(
+                        groq_key, self.conf["groq_base_url"], "Groq"
+                    )
+                else:
+                    models = api.openai_models(
+                        openai_key, self.conf["openai_base_url"]
+                    )
                 self._transcribe_models_loaded.emit(models, "")
             except api.ApiError as exc:
                 self._transcribe_models_loaded.emit([], str(exc))
@@ -1188,6 +1214,25 @@ class SettingsWindow(QDialog):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def _test_groq(self):
+        self.groq_test_button.setEnabled(False)
+        self.groq_test_label.setText(t("Trying…"))
+        key = self.groq_key.text().strip() or self.conf.groq_key()
+
+        def work():
+            try:
+                models = api.openai_models(
+                    key, self.conf["groq_base_url"], "Groq"
+                )
+                self._groq_test_done.emit(
+                    True, t("Connection works. {count} audio models visible.",
+                            count=len(models))
+                )
+            except api.ApiError as exc:
+                self._groq_test_done.emit(False, str(exc))
+
+        threading.Thread(target=work, daemon=True).start()
+
     def _on_or_test_done(self, ok, message):
         self.or_test_button.setEnabled(True)
         self.or_test_label.setText(("✓ " if ok else "✗ ") + message)
@@ -1195,6 +1240,10 @@ class SettingsWindow(QDialog):
     def _on_test_done(self, ok, message):
         self.test_button.setEnabled(True)
         self.test_label.setText(("✓ " if ok else "✗ ") + message)
+
+    def _on_groq_test_done(self, ok, message):
+        self.groq_test_button.setEnabled(True)
+        self.groq_test_label.setText(("✓ " if ok else "✗ ") + message)
 
     # ---- audio file ------------------------------------------------------
 
@@ -1280,7 +1329,7 @@ class SettingsWindow(QDialog):
 
     def _install_shortcut(self):
         combo = self.shortcut.currentText().strip() or "Ctrl+Space"
-        clashes = hotkey.conflicting_shortcuts(combo)
+        clashes = hotkey.conflicting_shortcuts(combo) if hotkey.desktop_name() == "KDE" else []
         if clashes:
             answer = QMessageBox.question(
                 self, t("Shortcut conflict"),
@@ -1289,7 +1338,7 @@ class SettingsWindow(QDialog):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        ok, message = hotkey.install_kde_shortcut(combo, self.launch_command)
+        ok, message = hotkey.install_shortcut(combo, self.launch_command)
         QMessageBox.information(self, t("Shortcut"), message)
         if ok:
             self.conf["shortcut"] = combo
@@ -1297,14 +1346,15 @@ class SettingsWindow(QDialog):
         self._refresh_shortcut_status()
 
     def _remove_shortcut(self):
-        hotkey.remove_kde_shortcut()
+        hotkey.remove_shortcut()
         self._refresh_shortcut_status()
 
     def _refresh_shortcut_status(self):
-        current = hotkey.kde_shortcut_status()
+        current = hotkey.shortcut_status()
         self.shortcut_status.setText(
-            t("Registered in KDE: {shortcut}", shortcut=current) if current
-            else t("No KDE shortcut installed.")
+            t("Registered in {desktop}: {shortcut}",
+              desktop=hotkey.desktop_name(), shortcut=current) if current
+            else t("No global shortcut installed.")
         )
 
     def _install_meeting_shortcut(self):
@@ -1322,7 +1372,7 @@ class SettingsWindow(QDialog):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        ok, message = hotkey.install_kde_shortcut(
+        ok, message = hotkey.install_shortcut(
             combo, self.meeting_command, name="Dikte: start/end a meeting recording",
             desktop_id=hotkey.MEETING_DESKTOP_ID,
         )
@@ -1333,14 +1383,15 @@ class SettingsWindow(QDialog):
         self._refresh_meeting_shortcut_status()
 
     def _remove_meeting_shortcut(self):
-        hotkey.remove_kde_shortcut(hotkey.MEETING_DESKTOP_ID)
+        hotkey.remove_shortcut(hotkey.MEETING_DESKTOP_ID)
         self._refresh_meeting_shortcut_status()
 
     def _refresh_meeting_shortcut_status(self):
-        current = hotkey.kde_shortcut_status(hotkey.MEETING_DESKTOP_ID)
+        current = hotkey.shortcut_status(hotkey.MEETING_DESKTOP_ID)
         self.meeting_shortcut_status.setText(
-            t("Registered in KDE: {shortcut}", shortcut=current) if current
-            else t("No KDE shortcut installed. The tray menu starts a meeting too.")
+            t("Registered in {desktop}: {shortcut}",
+              desktop=hotkey.desktop_name(), shortcut=current) if current
+            else t("No global shortcut installed. The tray menu starts a meeting too.")
         )
 
     # ---- Claude ----------------------------------------------------------
@@ -1360,7 +1411,7 @@ class SettingsWindow(QDialog):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        ok, message = hotkey.install_kde_shortcut(
+        ok, message = hotkey.install_shortcut(
             combo, self.ask_command, name="Dikte: ask Claude Code",
             desktop_id=hotkey.ASK_DESKTOP_ID,
         )
@@ -1371,14 +1422,15 @@ class SettingsWindow(QDialog):
         self._refresh_ask_shortcut_status()
 
     def _remove_ask_shortcut(self):
-        hotkey.remove_kde_shortcut(hotkey.ASK_DESKTOP_ID)
+        hotkey.remove_shortcut(hotkey.ASK_DESKTOP_ID)
         self._refresh_ask_shortcut_status()
 
     def _refresh_ask_shortcut_status(self):
-        current = hotkey.kde_shortcut_status(hotkey.ASK_DESKTOP_ID)
+        current = hotkey.shortcut_status(hotkey.ASK_DESKTOP_ID)
         self.assistant_shortcut_status.setText(
-            t("Registered in KDE: {shortcut}", shortcut=current) if current
-            else t("No KDE shortcut installed. The tray menu asks it too.")
+            t("Registered in {desktop}: {shortcut}",
+              desktop=hotkey.desktop_name(), shortcut=current) if current
+            else t("No global shortcut installed. The tray menu asks it too.")
         )
 
     def _assistant_provider_changed(self):

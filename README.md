@@ -32,10 +32,11 @@ dikte                        # the settings window opens on first run
 `install.sh` adds the `dikte` command, a menu entry, an autostart entry and the
 KDE shortcut.
 
-Two keys go in the settings window: **OpenAI** and **OpenRouter**. Speech to text
-runs on either one (`gpt-4o-transcribe` by default), cleanup always on
+The settings window accepts **OpenAI**, **Groq** and **OpenRouter** keys. Speech
+to text runs on any of them (`gpt-4o-transcribe` by default), cleanup always on
 OpenRouter (`google/gemini-3.5-flash-lite`), so a single OpenRouter key can
-cover both. They fall back to `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, and are
+cover both. They fall back to `OPENAI_API_KEY`, `GROQ_API_KEY` and
+`OPENROUTER_API_KEY`, and are
 stored in `~/.config/dikte/config.json`, mode 600. Cleanup can be switched off,
 in which case the raw transcript is pasted, and a thinking model's effort can be
 set next to it.
