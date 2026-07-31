@@ -30,7 +30,11 @@ dikte                        # ilk açılışta ayarlar penceresi gelir
 ```
 
 `install.sh` `dikte` komutunu, menü girdisini, oturum açılışında otomatik
-başlatmayı ve iki KDE kısayolunu kurar; tuşları da iki argümanı.
+başlatmayı ve iki KDE kısayolunu kurar; tuşları da iki argümanı. `./update.sh`
+son sürümü çeker, bütün bunları yerine koyar — varsayılanları değil senin
+seçtiğin tuşları koruyarak — ve çalışıyorsa dikteyi yeniden başlatır.
+`./uninstall.sh` hepsini geri alır; `--purge` demedikçe ayarlarına ve
+diktelerine dokunmaz.
 
 Ayarlar penceresinde iki anahtar istenir: **OpenAI** ve **OpenRouter**. Sesi
 yazıya çevirme ikisinden birinde çalışır (varsayılan `gpt-4o-transcribe`),

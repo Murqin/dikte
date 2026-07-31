@@ -30,7 +30,10 @@ dikte                        # the settings window opens on first run
 ```
 
 `install.sh` adds the `dikte` command, a menu entry, an autostart entry and the
-two KDE shortcuts, whose keys are its two arguments.
+two KDE shortcuts, whose keys are its two arguments. `./update.sh` pulls and puts
+all of that back, keeping the keys you chose rather than the defaults, and
+restarts Dikte if it was running. `./uninstall.sh` takes it all away again and
+leaves your settings and dictations alone unless you pass `--purge`.
 
 Two keys go in the settings window: **OpenAI** and **OpenRouter**. Speech to text
 runs on either one (`gpt-4o-transcribe` by default), cleanup always on
