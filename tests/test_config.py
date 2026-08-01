@@ -180,6 +180,31 @@ class TranscribeTarget(DikteTest):
                            openai_base_url="http://localhost:8080/v1")
         self.assertEqual(conf.transcribe_target().base_url, "http://localhost:8080/v1")
 
+    def test_the_rules_ride_along_when_one_model_is_to_do_both(self):
+        conf = self.config(transcribe_provider="openrouter",
+                           openrouter_api_key="sk-or-test")
+        self.assertEqual(conf.transcribe_target(cleanup=True).system,
+                         conf.cleanup_prompt())
+
+    def test_a_target_carries_no_instruction_by_default(self):
+        self.assertEqual(self.config().transcribe_target().system, "")
+
+
+class SingleCall(DikteTest):
+    def test_off_unless_it_is_asked_for(self):
+        self.assertFalse(self.config(transcribe_provider="openrouter").single_call())
+
+    def test_on_where_the_provider_has_a_model_that_hears(self):
+        conf = self.config(transcribe_provider="openrouter", single_call=True)
+        self.assertTrue(conf.single_call())
+
+    def test_the_tick_alone_does_not_settle_it(self):
+        """Everything else here transcribes and stops, whisper.cpp included."""
+        for provider in ("openai", "groq", "local"):
+            with self.subTest(provider=provider):
+                conf = self.config(transcribe_provider=provider, single_call=True)
+                self.assertFalse(conf.single_call())
+
 
 class CleanupPrompt(DikteTest):
     def test_the_default_follows_the_interface_language(self):

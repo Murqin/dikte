@@ -5,6 +5,7 @@ gone out, because that is what a new provider changes and what an old one
 notices: the URL, the headers, the fields of the multipart body, the JSON.
 """
 
+import base64
 import json
 import os
 import unittest
@@ -245,6 +246,92 @@ class Transcribe(DikteTest):
                 self.assertRaises(api.ApiError) as caught:
             api.transcribe(OPENAI, self.wav)
         self.assertIn("parse", str(caught.exception))
+
+
+class SingleCall(DikteTest):
+    """One model hearing the recording and handing back the finished text.
+
+    What makes the call that one is the target carrying the cleanup rules, so
+    these check where the request went and what the recording travelled as.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.wav = str(self.path("clip.wav"))
+        os.makedirs(self.root, exist_ok=True)
+        with open(self.wav, "wb") as fh:
+            fh.write(b"RIFFfake")
+        self.target = OPENROUTER._replace(system="Tidy it up.")
+
+    def reply(self, text="Merhaba."):
+        return {"choices": [{"message": {"content": text}}]}
+
+    def test_a_target_with_rules_goes_to_the_chat_endpoint(self):
+        with fake_urlopen(self.reply()) as calls:
+            self.assertEqual(api.transcribe(self.target, self.wav), "Merhaba.")
+        self.assertEqual(calls[0].full_url,
+                         "https://openrouter.ai/api/v1/chat/completions")
+
+    def test_without_rules_the_upload_stands(self):
+        with fake_urlopen({"text": "hi"}) as calls:
+            api.transcribe(OPENROUTER, self.wav)
+        self.assertTrue(calls[0].full_url.endswith("/audio/transcriptions"))
+
+    def test_a_provider_that_only_transcribes_ignores_the_rules(self):
+        """OpenAI's transcription models have nowhere to put an instruction."""
+        with fake_urlopen({"text": "hi"}) as calls:
+            api.transcribe(OPENAI._replace(system="Tidy it up."), self.wav)
+        self.assertTrue(calls[0].full_url.endswith("/audio/transcriptions"))
+
+    def test_the_rules_ride_as_the_system_message(self):
+        with fake_urlopen(self.reply()) as calls:
+            api.transcribe(self.target, self.wav)
+        self.assertEqual(sent_json(calls[0])["messages"][0],
+                         {"role": "system", "content": "Tidy it up."})
+
+    def test_the_recording_travels_base64_inside_the_body(self):
+        with fake_urlopen(self.reply()) as calls:
+            api.transcribe(self.target, self.wav)
+        part = sent_json(calls[0])["messages"][1]["content"][0]
+        self.assertEqual(part["type"], "input_audio")
+        self.assertEqual(part["input_audio"]["format"], "wav")
+        self.assertEqual(base64.b64decode(part["input_audio"]["data"]), b"RIFFfake")
+
+    def test_an_empty_key_is_refused_before_anything_is_sent(self):
+        with fake_urlopen(self.reply()) as calls:
+            with self.assertRaises(api.ApiError):
+                api.transcribe(self.target._replace(api_key=""), self.wav)
+        self.assertEqual(calls, [])
+
+    def test_a_recording_too_big_for_one_request_is_refused(self):
+        """The size is read off the disk, so the file is never loaded to find out."""
+        big = str(self.path("long.wav"))
+        with open(big, "wb") as fh:
+            fh.truncate(api.INLINE_LIMIT)
+        with fake_urlopen(self.reply()) as calls:
+            with self.assertRaises(api.ApiError) as caught:
+                api.transcribe(self.target, big)
+        self.assertEqual(calls, [])
+        self.assertIn("MB", str(caught.exception))
+
+    def test_an_empty_reply_is_an_error(self):
+        with fake_urlopen(self.reply("   ")), self.assertRaises(api.ApiError):
+            api.transcribe(self.target, self.wav)
+
+    def test_the_service_is_named_when_the_key_is_rejected(self):
+        with fake_urlopen(http_error(401)), self.assertRaises(api.ApiError) as caught:
+            api.transcribe(self.target, self.wav)
+        self.assertIn("OpenRouter", str(caught.exception))
+
+
+class ChunkLength(unittest.TestCase):
+    def test_a_chat_turn_is_capped_by_the_size_of_the_request(self):
+        self.assertEqual(api.chunk_seconds(OPENROUTER._replace(system="Tidy.")),
+                         api.INLINE_SECONDS)
+
+    def test_an_upload_has_no_limit_of_its_own(self):
+        self.assertIsNone(api.chunk_seconds(OPENROUTER))
+        self.assertIsNone(api.chunk_seconds(OPENAI._replace(system="Tidy.")))
 
 
 class TranscribeSegments(DikteTest):

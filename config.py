@@ -390,6 +390,10 @@ DEFAULTS = {
                                     # than on the first dictation
     "local_binary": "",             # empty -> whichever copy ggml.py finds
 
+    # One model for both jobs, where the provider has one that hears a recording
+    # inside a chat turn. It needs the cleanup below to be on: with nothing to
+    # ask for beyond the words, a chat turn is only a dearer transcription.
+    "single_call": False,
     "cleanup_enabled": True,
     "cleanup_provider": "openrouter",  # a name in cleanup.PROVIDERS
     "cleanup_model": "google/gemini-3.5-flash-lite",
@@ -560,8 +564,12 @@ class Config:
     def openrouter_key(self):
         return self.api_key("openrouter_api_key")
 
-    def transcribe_target(self):
+    def transcribe_target(self, cleanup=False):
         """Key, endpoint and model for whichever provider does speech to text.
+
+        With `cleanup` the target carries the cleanup rules, and that is what
+        makes the request the single call: the model that hears the recording is
+        the one that hands back the finished text.
 
         The local one is not in the table and leaves its base URL empty on
         purpose: the server picks a port when it starts, and reading a setting
@@ -580,7 +588,18 @@ class Config:
             name = "openai"
         who = TRANSCRIBERS[name]
         return api.Target(name, who.service, self.api_key(who.key),
-                          self[who.url], self[who.model])
+                          self[who.url], self[who.model],
+                          self.cleanup_prompt() if cleanup else "")
+
+    def single_call(self):
+        """Is one model to write the words down and clean them up at once?
+
+        The tick alone does not settle it: a provider whose transcription models
+        only transcribe has nowhere to put the rules, and there the two calls
+        stand however the box is set.
+        """
+        return bool(self["single_call"]) and api.can_clean_up(
+            self["transcribe_provider"])
 
     def transcribe_ready(self):
         """Whether speech to text could run right now, without opening Settings."""

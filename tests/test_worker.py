@@ -226,6 +226,46 @@ class Chain(DikteTest):
             pipeline._work(self.wav, 2.0, self.rms, True, None)
         self.assertIn("no claude", failures[0])
 
+    # ---- one model doing both jobs ----------------------------------------
+
+    def single(self, **kwargs):
+        self.conf["transcribe_provider"] = "openrouter"
+        self.conf["single_call"] = True
+        return self.run_chain(transcript="Book it for Thursday.", **kwargs)
+
+    def test_the_recording_carries_the_rules_and_cleanup_is_not_called(self):
+        run = self.single()
+        run["cleanup"].assert_not_called()
+        target = run["transcribe"].call_args[0][0]
+        self.assertEqual(target.system, self.conf.cleanup_prompt())
+
+    def test_the_one_call_has_a_stage_of_its_own(self):
+        """Two names for two calls would be a stage that never arrives."""
+        run = self.single()
+        self.assertEqual(run["stages"][0], "Writing it out…")
+        self.assertNotIn("Cleaning up…", run["stages"])
+
+    def test_a_provider_that_only_transcribes_keeps_its_two_calls(self):
+        self.conf["single_call"] = True          # the provider is still OpenAI
+        run = self.run_chain()
+        run["cleanup"].assert_called_once()
+        self.assertEqual(run["stages"][:2], ["Transcribing…", "Cleaning up…"])
+
+    def test_cleanup_switched_off_leaves_the_single_call_alone(self):
+        """With nothing to ask for beyond the words, the cheaper endpoint does."""
+        self.conf["cleanup_enabled"] = False
+        run = self.single()
+        self.assertEqual(run["transcribe"].call_args[0][0].system, "")
+        self.assertEqual(run["stages"][0], "Transcribing…")
+
+    def test_a_single_call_leaves_no_raw_behind(self):
+        self.single()
+        row = cfg.read_history()[0]
+        self.assertEqual(row["raw"], "")
+        self.assertEqual(row["text"], "Book it for Thursday.")
+        # The model that heard it is the one that cleaned it up.
+        self.assertEqual(row["cleanup_model"], row["model"])
+
     # ---- what is left behind ----------------------------------------------
 
     def test_the_run_is_written_to_the_history(self):

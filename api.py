@@ -10,6 +10,7 @@ What is on this machine has no key, and its base URL is not known until a server
 is up, which is the one thing this module has to fill in for it.
 """
 
+import base64
 import collections
 import json
 import mimetypes
@@ -35,8 +36,22 @@ LOCAL_TIMEOUT = 3600
 
 # Where a transcription request goes; built by config.Config.transcribe_target().
 # `service` is the name the user sees in an error, `provider` the one the code
-# branches on.
-Target = collections.namedtuple("Target", "provider service api_key base_url model")
+# branches on. `system` is the instruction the recording carries when one model
+# is to do both jobs, and empty when the transcript comes back raw.
+Target = collections.namedtuple(
+    "Target", "provider service api_key base_url model system", defaults=("",),
+)
+
+# Providers whose models can be handed a recording inside a chat turn, and so can
+# be given the cleanup rules along with it and answer with the finished text. The
+# transcription models on OpenAI and Groq only transcribe.
+AUDIO_CHAT_PROVIDERS = ("openrouter",)
+
+# Audio sent that way is base64 inside the JSON body, which grows it by a third,
+# and the request is refused past 20 MB. 16 kHz mono s16 comes to about 42 kB a
+# second once encoded, so this is the length that still leaves room for a prompt.
+INLINE_LIMIT = 18 * 1024 * 1024
+INLINE_SECONDS = 400
 
 
 def timestamp_model(provider, selected=""):
@@ -51,6 +66,31 @@ def timestamp_model(provider, selected=""):
     if provider in ("groq", "local"):
         return selected or "whisper-large-v3-turbo"
     return "openai/whisper-1" if provider == "openrouter" else "whisper-1"
+
+
+def can_clean_up(provider):
+    """Can one model on this provider transcribe and clean up in a single call?"""
+    return provider in AUDIO_CHAT_PROVIDERS
+
+
+def is_audio_chat(target):
+    """Is the recording going into a chat turn rather than to /audio/transcriptions?
+
+    Only when it has an instruction to carry, which is the single call. Without
+    one there is nothing a chat turn could do that the cheaper transcription
+    endpoint cannot.
+    """
+    return bool(target.system) and can_clean_up(target.provider)
+
+
+def chunk_seconds(target):
+    """How long one piece of audio may be, or None for no limit of its own.
+
+    A recording travelling inside a chat turn is capped by the size of the
+    request; one uploaded to the transcription endpoint is not, and there the
+    caller's own chunk length stands.
+    """
+    return INLINE_SECONDS if is_audio_chat(target) else None
 
 
 class ApiError(Exception):
@@ -235,7 +275,52 @@ def _merge_word_splits(segments):
     return merged
 
 
+def _inline_audio(wav_path):
+    """(base64 payload, format) for a recording sent inside a JSON body."""
+    # Base64 grows a file by a third, and the size is on disk before any of it is
+    # in memory: an oversized recording is refused without being read.
+    encoded_size = os.path.getsize(wav_path) * 4 // 3
+    if encoded_size > INLINE_LIMIT:
+        raise ApiError(t(
+            "This recording is too long to send in one request ({size} MB "
+            "encoded). Turn the single call off to upload it instead.",
+            size=round(encoded_size / (1024 * 1024)),
+        ))
+    with open(wav_path, "rb") as fh:
+        encoded = base64.b64encode(fh.read()).decode("ascii")
+    return encoded, os.path.splitext(wav_path)[1].lstrip(".").lower() or "wav"
+
+
+def _transcribe_chat(target, wav_path, timeout=300):
+    """One chat turn carrying the recording.
+
+    What comes back is whatever the target's instruction asked for: the words as
+    they were spoken, or the finished text when the instruction was the cleanup
+    rules. This function cannot tell the two apart and does not need to.
+    """
+    if not target.api_key:
+        raise ApiError(t("{service} API key is empty. Add it in Settings.",
+                         service=target.service))
+    data, fmt = _inline_audio(wav_path)
+    payload = {
+        "model": target.model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": target.system},
+            {"role": "user", "content": [
+                {"type": "input_audio",
+                 "input_audio": {"data": data, "format": fmt}},
+            ]},
+        ],
+    }
+    return _chat_reply(payload, target.provider, target.api_key, target.base_url,
+                       target.service, timeout, t("Transcript came back empty."))
+
+
 def transcribe(target, wav_path, language="", prompt="", timeout=300):
+    """The recording as text, already cleaned up when the target carries rules."""
+    if is_audio_chat(target):
+        return _transcribe_chat(target, wav_path, timeout=timeout)
     data = _transcribe_request(
         target, wav_path, language, prompt, "json", timeout=timeout
     )
@@ -309,6 +394,29 @@ def local_ceiling(text):
     return max(512, len(text))
 
 
+def _chat_reply(payload, provider, api_key, base_url, service, timeout, empty_error):
+    """POST a /chat/completions body and return the one message it answered with.
+
+    Three jobs send one of these: a transcript to be tidied, a conversation, and
+    a recording that carries its own instructions.
+    """
+    try:
+        data = _request(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json.dumps(payload).encode("utf-8"),
+            _headers(provider, api_key, "application/json"), timeout=timeout,
+        )
+    except ApiError as exc:
+        raise explain(exc, service) from None
+    choices = data.get("choices") or []
+    if not choices:
+        raise ApiError(_extract_error(json.dumps(data)))
+    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        raise ApiError(empty_error)
+    return content
+
+
 def cleanup(text, api_key, model, system_prompt, reasoning="",
             base_url=OPENROUTER_URL, timeout=180, provider="openrouter",
             service="OpenRouter"):
@@ -367,22 +475,8 @@ def chat(messages, api_key, model, system_prompt, reasoning="",
     }
     if reasoning:
         payload["reasoning"] = {"effort": reasoning, "exclude": True}
-    try:
-        data = _request(
-            f"{base_url.rstrip('/')}/chat/completions",
-            json.dumps(payload).encode("utf-8"),
-            _headers("openrouter", api_key, "application/json"),
-            timeout=timeout,
-        )
-    except ApiError as exc:
-        raise explain(exc, "OpenRouter") from None
-    choices = data.get("choices") or []
-    if not choices:
-        raise ApiError(_extract_error(json.dumps(data)))
-    content = ((choices[0].get("message") or {}).get("content") or "").strip()
-    if not content:
-        raise ApiError(t("The model returned an empty reply."))
-    return content
+    return _chat_reply(payload, "openrouter", api_key, base_url, "OpenRouter",
+                       timeout, t("The model returned an empty reply."))
 
 
 def _get_json(url, headers, timeout=20):

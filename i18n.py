@@ -66,6 +66,7 @@ TR = {
 
     # --- overlay / pipeline -------------------------------------------
     "Transcribing…": "Yazıya çevriliyor…",
+    "Writing it out…": "Yazıya dökülüyor…",
     "Cleaning up…": "Temizleniyor…",
     "Pasting…": "Yapıştırılıyor…",
     "Pasted": "Yapıştırıldı",
@@ -122,6 +123,10 @@ TR = {
     "{service} API key is empty. Add it in Settings.":
         "{service} API anahtarı boş. Ayarlar'dan gir.",
     "Transcript came back empty.": "Transkript boş döndü.",
+    "This recording is too long to send in one request ({size} MB encoded). "
+    "Turn the single call off to upload it instead.":
+        "Bu kayıt tek istekte gönderilemeyecek kadar uzun (kodlanmış {size} MB). "
+        "Tek çağrıyı kapatırsan dosya olarak yüklenir.",
     "The cleanup model returned an empty reply.": "Temizleme modeli boş yanıt döndü.",
     "Could not connect: {reason}": "Bağlantı kurulamadı: {reason}",
     "Could not parse the response: {error}": "Yanıt çözümlenemedi: {error}",

@@ -91,8 +91,15 @@ class Pipeline(QObject):
                 return
 
         try:
-            self.stage.emit(t("Transcribing…"))
-            target = conf.transcribe_target()
+            # Claude reads through “eee” and “hani” without help, so a dictation
+            # on its way there is normally sent as it was heard, one API call and
+            # a second or two lighter.
+            do_cleanup = conf["assistant_cleanup"] if ask else conf["cleanup_enabled"]
+            # One model doing both jobs has no stage of its own: the recording
+            # goes out once and the finished text comes back.
+            single = do_cleanup and conf.single_call()
+            target = conf.transcribe_target(cleanup=single)
+            self.stage.emit(t("Writing it out…") if single else t("Transcribing…"))
             raw = api.transcribe(
                 target,
                 wav_path,
@@ -107,11 +114,12 @@ class Pipeline(QObject):
 
             text = raw
             warning = ""
-            # Claude reads through “eee” and “hani” without help, so a dictation
-            # on its way there is normally sent as it was heard, one API call and
-            # a second or two lighter.
-            if (conf["assistant_cleanup"] if ask else conf["cleanup_enabled"]):
+            # The one model that heard the recording cleaned it up as well, so it
+            # is the cleanup model of this run as much as the transcriber.
+            cleanup_model = target.model if single else ""
+            if do_cleanup and not single:
                 self.stage.emit(t("Cleaning up…"))
+                cleanup_model = cleanup.model(conf)
                 try:
                     text = cleanup.run(raw, conf, conf.cleanup_prompt())
                 except api.ApiError as exc:
@@ -153,12 +161,14 @@ class Pipeline(QObject):
                 "duration": round(duration, 1),
                 "elapsed": round(time.monotonic() - started, 1),
                 "model": target.model,
-                "cleanup_model": cleanup.model(conf) if conf["cleanup_enabled"] else "",
+                "cleanup_model": cleanup_model,
                 "cleanup_error": warning,
                 "mode": "ask" if ask else "",
                 "question": question,
                 "assistant_model": conf["assistant_model"] if ask else "",
-                "raw": raw,
+                # A single call has no raw stage: what came back was already
+                # cleaned up, and it is kept once, as the text.
+                "raw": "" if single else raw,
                 "text": text,
             })
             try:
