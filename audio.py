@@ -44,6 +44,7 @@ class Recorder(QObject):
         self._buffer = bytearray()
         self._rms = []
         self._cancelled = False
+        self._stopping = False
         self._lock = threading.Lock()
 
     @property
@@ -71,6 +72,7 @@ class Recorder(QObject):
         self._buffer = bytearray()
         self._rms = []
         self._cancelled = False
+        self._stopping = False
         self._max_bytes = int(max_seconds * RATE * SAMPLE_WIDTH * CHANNELS)
         self._thread = threading.Thread(target=self._pump, daemon=True)
         self._thread.start()
@@ -94,17 +96,25 @@ class Recorder(QObject):
                     break
         except (OSError, ValueError):
             pass
-        if not self._cancelled and not self._buffer and proc.poll() is not None:
-            try:
-                detail = proc.stderr.read().decode("utf-8", "replace").strip()
-            except (AttributeError, OSError):
-                detail = ""
-            self.failed.emit(t(
-                "Audio recorder stopped before receiving sound: {error}",
-                error=detail or f"exit code {proc.returncode}",
-            ))
+        # Nobody asked it to end and it captured nothing: the recorder is not
+        # installed properly, or the device was refused. Said out loud here,
+        # because stop() would otherwise report it as a recording that was too
+        # short, which sends the user looking in the wrong place.
+        with self._lock:
+            captured = bool(self._buffer)
+        if self._stopping or self._cancelled or captured:
+            return
+        try:
+            detail = proc.stderr.read().decode("utf-8", "replace").strip()
+        except (AttributeError, OSError):
+            detail = ""
+        self.failed.emit(t(
+            "Audio recorder stopped before receiving sound: {error}",
+            error=detail or f"exit code {proc.returncode}",
+        ))
 
     def _terminate(self):
+        self._stopping = True
         proc = self._proc
         if proc and proc.poll() is None:
             try:
