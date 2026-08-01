@@ -101,30 +101,22 @@ TR = {
     "Unexpected error: {error}": "Beklenmeyen hata: {error}",
 
     # --- audio / paste errors -----------------------------------------
-    "pw-record not found. Is pipewire-audio installed?":
-        "pw-record bulunamadı. pipewire-audio kurulu mu?",
     "Could not start recording: {error}": "Kayıt başlatılamadı: {error}",
     "No audio recorder found. Install pulseaudio-utils or pipewire-audio.":
         "Ses kayıt aracı bulunamadı. pulseaudio-utils ya da pipewire-audio kur.",
     "Audio recorder stopped before receiving sound: {error}":
         "Ses kayıt aracı veri alamadan kapandı: {error}",
-    "wl-copy not found. Install wl-clipboard.":
-        "wl-copy bulunamadı. wl-clipboard paketini kur.",
     "Could not copy to clipboard: {error}": "Panoya kopyalanamadı: {error}",
-    "{tool} not found; clipboard copy is unavailable.":
-        "{tool} bulunamadı; panoya kopyalama kullanılamıyor.",
+    "{tool} not found. Install {packages}.":
+        "{tool} bulunamadı. {packages} paketlerini kur.",
     "{tool} exited with code {code}.": "{tool} {code} koduyla çıktı.",
     "{tool} not found, cannot paste automatically.":
         "{tool} bulunamadı, otomatik yapıştırma yapılamıyor.",
-    "Could not run xdotool: {error}": "xdotool çalıştırılamadı: {error}",
-    "xdotool failed: {error}": "xdotool hatası: {error}",
-    "wl-copy exited with code {code}.": "wl-copy {code} koduyla çıktı.",
-    "ydotool not found, cannot paste automatically.":
-        "ydotool bulunamadı, otomatik yapıştırma yapılamıyor.",
     "Unknown key: {key}": "Bilinmeyen tuş: {key}",
-    "Could not run ydotool: {error}": "ydotool çalıştırılamadı: {error}",
-    "ydotool failed: {error}\nIs ydotoold running? (systemctl --user status ydotool)":
-        "ydotool hatası: {error}\nydotoold çalışıyor mu? (systemctl --user status ydotool)",
+    "Could not run {tool}: {error}": "{tool} çalıştırılamadı: {error}",
+    "{tool} failed: {error}": "{tool} hatası: {error}",
+    "Is ydotoold running? (systemctl --user status ydotool)":
+        "ydotoold çalışıyor mu? (systemctl --user status ydotool)",
 
     # --- api errors ----------------------------------------------------
     "{service} API key is empty. Add it in Settings.":
