@@ -66,6 +66,13 @@ verilen komut yalnızca mikrofon için birbirini bekler, o da tek aygıt olduğu
 için; başka hiçbir şeyde beklemezler. Her birinin kendi göstergesi var, ikisi
 birden ekrandayken ikincisi birincinin üstüne yerleşir.
 
+Ayarlar penceresindeki her şeyin bir de komutu var; bir betik ya da bir ajan
+yazılımın tamamını çalıştırabilsin diye: `dikte record --seconds 8` söyleneni
+geri verir, `dikte transcribe konusma.mp4 --srt` altyazıyı yazar, ayarlar,
+geçmiş ve toplantılar da yanlarında durur. Hepsini `dikte --help` sayar, hepsi
+`--json` kabul eder, yalnızca mikrofona ihtiyacı olanlar uygulamanın açık
+olmasını ister.
+
 ## Neler yapıyor
 
 - **Sessizlik API'ye gitmez.** Sessize yakın bir ses verildiğinde model boş dize
@@ -129,7 +136,9 @@ grubunda olmasını gerektirir: `sudo usermod -aG input $USER`.
 ## Dosyalar
 
 ```
-dikte.py          giriş noktası, tepsi simgesi, durum makinesi, IPC
+dikte.py          giriş noktası, tepsi simgesi, durum makinesi
+cli.py            komut satırı: bütün fiiller ve verdikleri cevap
+ipc.py            yerel sokette bir istek, bir cevap
 audio.py          PCM kaydı: diktede pw-record, toplantıda ffmpeg
 meeting.py        kanal ayırma, konuşmacı etiketi, temizleme, tutanak
 assistant.py      dikteyi Claude Code, Codex ya da OpenRouter'dan geçirme
