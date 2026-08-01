@@ -176,7 +176,7 @@ class EvdevHotkey(QObject):
         return True
 
 
-# --- KDE custom shortcut --------------------------------------------------
+# --- the desktop's own shortcut -------------------------------------------
 
 def _gnome():
     desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
@@ -321,6 +321,9 @@ def shortcut_status(desktop_id=DESKTOP_ID):
 
 def desktop_name():
     return "GNOME" if _gnome() else "KDE"
+
+
+# --- KDE ------------------------------------------------------------------
 
 def install_kde_shortcut(shortcut, exec_command, name="Dikte: start/stop recording",
                          desktop_id=DESKTOP_ID):
